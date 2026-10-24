@@ -1,8 +1,10 @@
-// FullEnrich (API v2) : lancement d'une recherche d'email ou de téléphone, écriture des résultats.
+// FullEnrich (API v2) : premier passage de la cascade (FullEnrich, puis Pipecorn sur les échecs, ZeroBounce en arbitre).
+// Lancement d'une recherche d'email ou de téléphone, écriture des résultats.
 // Les résultats arrivent par webhook (signé HMAC-SHA1 avec la clé) et, en secours, par lecture à la demande.
 // Une recherche prend 30 à 90 secondes par contact (cascade d'une vingtaine de fournisseurs).
 import { requete } from "@/lib/db";
-import { verifier } from "@/lib/zerobounce";
+import { NEGATIFS, verifier } from "@/lib/zerobounce";
+import { secondPassage } from "@/lib/pipecorn";
 
 const API = "https://app.fullenrich.com/api/v2/contact/enrich/bulk";
 export const CHAMPS = { email: "contact.work_emails", telephone: "contact.phones" } as const;
@@ -97,6 +99,7 @@ export async function ecrire(d: Resultat): Promise<{ contact_id: number; champ: 
       // « introuvable » distingue une recherche sans résultat d'une recherche jamais faite (enrichi_le sert aussi au téléphone).
       await requete(
         `update contacts set email = coalesce($2, email),
+                email_source = case when $2::text is not null and email is null then 'fullenrich' else email_source end,
                 email_statut = case when $2::text is not null then $3 when email is null then 'introuvable' else email_statut end,
                 enrichi_le = now() where id = $1`,
         [id, e?.email ?? null, e?.status ?? null]);
@@ -114,6 +117,15 @@ export async function ecrire(d: Resultat): Promise<{ contact_id: number; champ: 
   const aVerifier = sortie.filter((x) => x.champ === "email" && x.valeur);
   for (let i = 0; i < aVerifier.length; i += 5) {
     await Promise.all(aVerifier.slice(i, i + 5).map(async (x) => { x.verif = (await verifier(x.contact_id)).verif; }));
+  }
+  // Cascade : Pipecorn reprend les emails introuvables et ceux que ZeroBounce refuse (10 au plus ici, le reste
+  // passe au rattrapage quotidien). Son résultat, revérifié, remplace celui de FullEnrich dans la réponse.
+  const aReprendre = sortie.filter((x) => x.champ === "email" && (!x.valeur || NEGATIFS.has(x.verif ?? ""))).map((x) => x.contact_id);
+  if (aReprendre.length) {
+    for (const p of await secondPassage(aReprendre.slice(0, 10), 150000)) {
+      const x = sortie.find((s) => s.contact_id === p.contact_id && s.champ === "email");
+      if (x && p.valeur) Object.assign(x, { valeur: p.valeur, verif: p.verif, detail: "pipecorn" });
+    }
   }
   return sortie;
 }

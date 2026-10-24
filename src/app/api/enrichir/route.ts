@@ -6,7 +6,10 @@ import { CHAMPS, contactsAEnrichir, ecrire, enrichirAlertes, lancer, lire, termi
 // décideurs marketing d'un compte qui n'en ont pas. Réservée aux contacts sourcés par Flow Ops (réservoir A) :
 // une donnée de campagne (C) ou du CRM Hirondo (B) ne part pas dans une cascade d'enrichissement tierce sans
 // accord écrit (NDA, article 9). Coût : 1 crédit par email trouvé, 10 par mobile trouvé. Route protégée par la session.
-const DECIDEUR = "(cmo|chief marketing|directeur.*marketing|directrice.*marketing|marketing director|director of marketing|head of marketing|vp marketing|directeur.*communication|directrice.*communication|chief brand|chief growth|head of growth)";
+// La lecture de secours peut écrire le résultat et lancer le second passage Pipecorn (jusqu'à 30 s par contact).
+export const maxDuration = 300;
+
+const DECIDEUR ="(cmo|chief marketing|directeur.*marketing|directrice.*marketing|marketing director|director of marketing|head of marketing|vp marketing|directeur.*communication|directrice.*communication|chief brand|chief growth|head of growth)";
 
 export async function POST(request: Request) {
   const { contact_id, compte_id, champ, alertes } = (await request.json()) as { contact_id?: number; compte_id?: number; champ?: Champ; alertes?: boolean };

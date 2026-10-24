@@ -6,6 +6,19 @@ import { requete } from "@/lib/db";
 const API = "https://api-eu.zerobounce.net/v2/validate";
 
 export type Verification = { verif: string | null; detail: string | null; erreur?: string };
+/** Statuts qui interdisent d'écrire à l'adresse. catch-all et unknown n'en font pas partie. */
+export const NEGATIFS = new Set(["invalid", "spamtrap", "abuse", "do_not_mail"]);
+
+/** Vérifie une adresse sans rien écrire en base (1 crédit). Lève une erreur si la vérification n'a pas eu lieu. */
+export async function valider(email: string): Promise<{ status: string; sub_status: string | null }> {
+  const cle = process.env.ZEROBOUNCE_API;
+  if (!cle) throw new Error("ZEROBOUNCE_API absente");
+  const r = await fetch(`${API}?api_key=${encodeURIComponent(cle)}&email=${encodeURIComponent(email)}&ip_address=&timeout=20`, { cache: "no-store" });
+  const d = (await r.json().catch(() => ({}))) as { status?: string; sub_status?: string; error?: string };
+  // Crédits épuisés ou clé refusée : réponse 200 avec un champ error.
+  if (!r.ok || !d.status) throw new Error(d.error || `ZeroBounce ${r.status}`);
+  return { status: d.status, sub_status: d.sub_status || null };
+}
 
 async function credits(cle: string): Promise<number> {
   const r = await fetch(`https://api-eu.zerobounce.net/v2/getcredits?api_key=${encodeURIComponent(cle)}`, { cache: "no-store" });
@@ -14,8 +27,8 @@ async function credits(cle: string): Promise<number> {
 }
 
 /** Rattrapage (tâche planifiée) : emails du réservoir A pas encore vérifiés, ceux trouvés par FullEnrich d'abord,
- *  puis ceux de la base Pharow. Autant que les crédits le permettent, par lots de 5 en parallèle, en s'arrêtant
- *  avant la limite de durée de la fonction (60 s). */
+ *  puis ceux de la base Pharow. Autant que les crédits le permettent, par lots de 5 en parallèle, dans un budget
+ *  de 40 secondes. */
 export async function verifierEnAttente(limite = 200): Promise<{ verifies: number; restants: number; credits: number }> {
   const cle = process.env.ZEROBOUNCE_API;
   if (!cle) return { verifies: 0, restants: 0, credits: 0 };
@@ -53,12 +66,9 @@ export async function verifier(contactId: number): Promise<Verification> {
     return deja ?? { verif: null, detail: null };
   }
   try {
-    const r = await fetch(`${API}?api_key=${encodeURIComponent(cle)}&email=${encodeURIComponent(c.email)}&ip_address=&timeout=20`, { cache: "no-store" });
-    const d = (await r.json().catch(() => ({}))) as { status?: string; sub_status?: string; error?: string };
-    // Crédits épuisés ou clé refusée : réponse 200 avec un champ error.
-    if (!r.ok || !d.status) throw new Error(d.error || `ZeroBounce ${r.status}`);
-    await requete(`update contacts set email_verif = $2, email_verif_detail = nullif($3, '') where id = $1`, [contactId, d.status, d.sub_status ?? ""]);
-    return { verif: d.status, detail: d.sub_status || null };
+    const d = await valider(c.email);
+    await requete(`update contacts set email_verif = $2, email_verif_detail = $3 where id = $1`, [contactId, d.status, d.sub_status]);
+    return { verif: d.status, detail: d.sub_status };
   } catch (e) {
     await requete(`update contacts set email_verifie_le = null where id = $1`, [contactId]);
     return { verif: null, detail: null, erreur: (e as Error).message };

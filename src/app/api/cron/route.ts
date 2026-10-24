@@ -3,14 +3,15 @@ import { requete } from "@/lib/db";
 import { safeEqual } from "@/lib/auth";
 import { ACTEURS, lancer } from "@/lib/apify";
 import { verifierEnAttente } from "@/lib/zerobounce";
+import { secondPassageEnAttente } from "@/lib/pipecorn";
 
 // Tâche quotidienne (Vercel Cron, une fois par jour sur l'offre gratuite). Elle lance ce qui est dû :
 //   engageurs  chaque jour, pour chaque post suivi
 //   postes     chaque semaine, recherche des décideurs marketing qui ont changé de poste
 //   decideurs  chaque mois, relecture des décideurs des comptes A et B
-//   chaque jour aussi, vérification ZeroBounce des emails trouvés en attente
+//   chaque jour aussi, vérification ZeroBounce des emails en attente et second passage Pipecorn
 // Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|engageurs|verifications lance à la demande.
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const PLAFONDS = { postes: 0.5, decideurs: 2.5, engageurs: 1, manquants: 1.5, offres: 0.6 };
 
@@ -26,12 +27,15 @@ export async function GET(request: Request) {
   if (!secret || !safeEqual(donne, secret)) return NextResponse.json({ ok: false }, { status: 401 });
 
   const forcer = new URL(request.url).searchParams.get("forcer");
-  // Chaque jour, hors relevés : vérification ZeroBounce des emails trouvés restés en attente (crédits épuisés).
-  const verification = !forcer || forcer === "verifications" ? await verifierEnAttente().catch(() => null) : null;
-  if (forcer === "verifications") return NextResponse.json({ ok: true, verification });
+  // Chaque jour, hors relevés : vérification ZeroBounce des emails restés en attente, puis second passage Pipecorn
+  // sur les introuvables et les refusés (crédits épuisés la veille ou le mois précédent).
+  const enrichissement = !forcer || forcer === "verifications";
+  const verification = enrichissement ? await verifierEnAttente().catch(() => null) : null;
+  const cascade = enrichissement ? await secondPassageEnAttente(150000).catch(() => null) : null;
+  if (forcer === "verifications") return NextResponse.json({ ok: true, verification, cascade });
 
   const params = new Map((await requete<{ cle: string; valeur: unknown }>(`select cle, valeur from parametres`)).map((p) => [p.cle, p.valeur]));
-  if (params.get("releves_actifs") !== true) return NextResponse.json({ ok: true, lance: [], verification, raison: "relevés coupés" });
+  if (params.get("releves_actifs") !== true) return NextResponse.json({ ok: true, lance: [], verification, cascade, raison: "relevés coupés" });
 
   const retour = (nature: string) => `${new URL("/api/webhook/apify", request.url).toString()}?cle=${encodeURIComponent(process.env.WEBHOOK_SECRET || "")}&nature=${nature}`;
   const lances: string[] = [];
@@ -101,5 +105,5 @@ export async function GET(request: Request) {
       }
     }
   }
-  return NextResponse.json({ ok: true, lances, verification });
+  return NextResponse.json({ ok: true, lances, verification, cascade });
 }

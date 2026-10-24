@@ -38,9 +38,11 @@ async function attendre(id: string): Promise<Resultat[] | null> {
 }
 
 /** `etat` : résultat d'une recherche précédente ou lancée automatiquement (« Introuvable le 24 oct. »). */
-export function Coordonnee({ contactId, champ, initiale, autorise, etat = null, verifInitiale = null, verifDetail = null }: {
+const SOURCES: Record<string, string> = { import: "base importée", fullenrich: "FullEnrich", pipecorn: "Pipecorn" };
+
+export function Coordonnee({ contactId, champ, initiale, autorise, etat = null, verifInitiale = null, verifDetail = null, source = null }: {
   contactId: number; champ: "email" | "telephone"; initiale: string | null; autorise: boolean; etat?: string | null;
-  verifInitiale?: string | null; verifDetail?: string | null;
+  verifInitiale?: string | null; verifDetail?: string | null; source?: string | null;
 }) {
   const [valeur, setValeur] = useState(initiale);
   const [enCours, setEnCours] = useState(false);
@@ -73,7 +75,7 @@ export function Coordonnee({ contactId, champ, initiale, autorise, etat = null, 
 
   if (valeur) {
     return (
-      <span className="chiffres text-xs text-texte break-all">
+      <span className="chiffres text-xs text-texte break-all" title={source ? `Source : ${SOURCES[source] ?? source}` : undefined}>
         {valeur}
         {champ === "email" && verif.statut && <MarqueVerif verif={verif.statut} detail={verif.detail} />}
       </span>

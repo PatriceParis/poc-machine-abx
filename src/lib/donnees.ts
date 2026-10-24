@@ -116,9 +116,9 @@ export async function ficheCompte(id: number) {
             exists (select 1 from signaux_actifs a where a.id = s.id) as actif
      from signaux s join types_signal t on t.code = s.type_code left join contacts c on c.id = s.contact_id
      where s.compte_id = $1 order by (t.famille = 'adequation'), s.survenu_le desc`, [id]);
-  const contacts = await requete<{ id: number; prenom: string | null; nom: string | null; poste: string | null; fonction: string; url_linkedin: string | null; email: string | null; telephone: string | null; origine: string; enrichi_le: string | null; email_statut: string | null; email_verif: string | null; email_verif_detail: string | null }>(
+  const contacts = await requete<{ id: number; prenom: string | null; nom: string | null; poste: string | null; fonction: string; url_linkedin: string | null; email: string | null; telephone: string | null; origine: string; enrichi_le: string | null; email_statut: string | null; email_verif: string | null; email_verif_detail: string | null; email_source: string | null }>(
     `select id::int, prenom, nom, poste, fonction, url_linkedin, email, telephone, origine::text, enrichi_le, email_statut,
-            email_verif, email_verif_detail
+            email_verif, email_verif_detail, email_source
      from contacts where compte_id = $1 order by (fonction = 'autre'), poste`, [id]);
   return { compte, signaux, contacts };
 }
@@ -170,4 +170,39 @@ export async function grille() {
   const parametres = await requete<{ cle: string; valeur: unknown; commentaire: string | null }>(
     `select cle, valeur, commentaire from parametres order by cle`);
   return { types, parametres };
+}
+
+export type Variante = { lettre: string; skill: string; angle: string | null; part: number; objet: string | null; corps: string | null };
+export type Etape = { numero: number; jour: number; canal: string; action: string; libelle: string; condition: string | null; outil: string | null; variantes: Variante[] };
+export type Sequence = {
+  code: string; nom: string; declencheur: string; statut: string; objectif: string | null; sortie: string | null; garde_fous: string | null;
+  etapes: Etape[]; concernes: { contacts: number; email_valide: number; linkedin: number };
+};
+
+/** Séquences de la configuration, avec leurs étapes et variantes, et les contacts qu'elles toucheraient aujourd'hui. */
+export async function sequences(): Promise<Sequence[]> {
+  const seqs = await requete<Omit<Sequence, "etapes" | "concernes"> & { type_signal: string | null }>(
+    `select code, nom, declencheur, type_signal, statut, objectif, sortie, garde_fous from sequences order by ordre, nom`);
+  const etapes = await requete<Omit<Etape, "variantes"> & { sequence_code: string }>(
+    `select sequence_code, numero, jour, canal, action, libelle, condition, outil from sequence_etapes order by sequence_code, numero`);
+  const variantes = await requete<Variante & { sequence_code: string; numero: number }>(
+    `select sequence_code, numero, lettre, skill, angle, part, objet, corps from sequence_variantes order by sequence_code, numero, lettre`);
+  return Promise.all(seqs.map(async (s) => {
+    // Contacts portés par un signal actif du déclencheur, comptes exclus à part.
+    const [c] = s.type_signal ? await requete<Sequence["concernes"]>(
+      `select count(distinct ct.id)::int as contacts,
+              count(distinct ct.id) filter (where ct.email_verif = 'valid')::int as email_valide,
+              count(distinct ct.id) filter (where ct.url_linkedin like '%linkedin.com/in/%')::int as linkedin
+       from signaux sg join types_signal t on t.code = sg.type_code join contacts ct on ct.id = sg.contact_id
+       join comptes co on co.id = ct.compte_id
+       where sg.type_code = $1 and not co.exclu and ct.compte_id = sg.compte_id
+         and (t.expire_jours is null or sg.survenu_le >= now() - make_interval(days => t.expire_jours))`, [s.type_signal]) : [];
+    return {
+      ...s,
+      etapes: etapes.filter((e) => e.sequence_code === s.code).map((e) => ({
+        ...e, variantes: variantes.filter((v) => v.sequence_code === s.code && v.numero === e.numero),
+      })),
+      concernes: c ?? { contacts: 0, email_valide: 0, linkedin: 0 },
+    };
+  }));
 }
