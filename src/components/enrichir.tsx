@@ -45,21 +45,8 @@ export function Coordonnee({ contactId, champ, initiale, autorise, etat = null, 
   const [valeur, setValeur] = useState(initiale);
   const [enCours, setEnCours] = useState(false);
   const [message, setMessage] = useState<string | null>(etat);
+  // Vérification faite côté serveur dès que l'email est trouvé, rattrapée chaque jour si les crédits manquaient.
   const [verif, setVerif] = useState({ statut: verifInitiale, detail: verifDetail });
-
-  const verifierEmail = async () => {
-    setEnCours(true);
-    setMessage(null);
-    try {
-      const d = (await (await fetch("/api/verifier", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contact_id: contactId }) })).json()) as { verif?: string | null; detail?: string | null; erreur?: string };
-      if (d.verif) setVerif({ statut: d.verif, detail: d.detail ?? null });
-      else setMessage(d.erreur?.includes("credits") ? "Crédits ZeroBounce épuisés" : d.erreur ?? "Vérification impossible");
-    } catch {
-      setMessage("Problème de connexion");
-    } finally {
-      setEnCours(false);
-    }
-  };
   const Icone = champ === "email" ? Mail : Phone;
   const libelle = champ === "email" ? "Chercher email" : "Chercher téléphone";
 
@@ -86,18 +73,9 @@ export function Coordonnee({ contactId, champ, initiale, autorise, etat = null, 
 
   if (valeur) {
     return (
-      <span className="flex flex-col items-start gap-1">
-        <span className="chiffres text-xs text-texte break-all">
-          {valeur}
-          {champ === "email" && verif.statut && <MarqueVerif verif={verif.statut} detail={verif.detail} />}
-        </span>
-        {champ === "email" && !verif.statut && autorise && (
-          <button type="button" onClick={verifierEmail} disabled={enCours} title="Vérifier la délivrabilité avec ZeroBounce (1 crédit)"
-            className="text-[11px] text-accent-fort hover:underline disabled:opacity-50">
-            {enCours ? "Vérification…" : "Vérifier"}
-          </button>
-        )}
-        {message && <span className="text-[11px] text-texte-3">{message}</span>}
+      <span className="chiffres text-xs text-texte break-all">
+        {valeur}
+        {champ === "email" && verif.statut && <MarqueVerif verif={verif.statut} detail={verif.detail} />}
       </span>
     );
   }
