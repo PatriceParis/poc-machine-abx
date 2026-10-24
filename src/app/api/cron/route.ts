@@ -60,10 +60,12 @@ export async function GET(request: Request) {
        where not s.exclu and s.palier = 'A' and s.url_linkedin like 'https://www.linkedin.com/company/%'
          and not exists (select 1 from contacts ct where ct.compte_id = s.compte_id
            and ct.poste ~* '(cmo|chief marketing|directeur.*marketing|directrice.*marketing|marketing director|director of marketing|head of marketing|vp marketing|directeur.*communication|directrice.*communication|chief brand|chief growth|head of growth)')`)).map((l) => l.url);
-    if (companies.length) {
-      const entree = { profileScraperMode: "Short ($4 per 1k)", companies, functionIds: ["15", "16"], seniorityLevelIds: ["220", "300", "310"], companyBatchMode: "all_at_once", maxItems: 200 };
-      await noter("manquants", await lancer(ACTEURS.manquants, entree, retour("manquants"), PLAFONDS.manquants), { comptes: companies.length });
-      lances.push(`manquants (${companies.length} comptes)`);
+    // L'acteur refuse plus de 20 entreprises par lancement (« up to 20 companies ») : un lancement par lot de 20.
+    for (let i = 0; i < companies.length; i += 20) {
+      const lot = companies.slice(i, i + 20);
+      const entree = { profileScraperMode: "Short ($4 per 1k)", companies: lot, functionIds: ["15", "16"], seniorityLevelIds: ["220", "300", "310"], companyBatchMode: "all_at_once", maxItems: 100 };
+      await noter("manquants", await lancer(ACTEURS.manquants, entree, retour("manquants"), PLAFONDS.manquants), { comptes: lot.length });
+      lances.push(`manquants (${lot.length} comptes)`);
     }
   }
 
