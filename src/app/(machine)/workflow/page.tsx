@@ -76,7 +76,6 @@ export default async function Workflow() {
         const li = s.etapes.filter((e) => e.canal === "linkedin").length;
         const em = s.etapes.filter((e) => e.canal === "email").length;
         const tests = s.etapes.filter((e) => e.variantes.length > 1).length;
-        const skills = [...new Set(s.etapes.flatMap((e) => e.variantes.map((v) => v.skill)))];
         const duree = Math.max(0, ...s.etapes.map((e) => e.jour));
         return (
           <Carte key={s.code}>
@@ -97,15 +96,6 @@ export default async function Workflow() {
                 <div>
                   <h3 className="text-xs uppercase tracking-wide text-texte-3 mb-2">Sortie de la séquence</h3>
                   <ul className="flex flex-col gap-1.5 text-texte-2">{lignes(s.sortie).map((l) => <li key={l}>{l}</li>)}</ul>
-                </div>
-                <div>
-                  <h3 className="text-xs uppercase tracking-wide text-texte-3 mb-2">Garde-fous</h3>
-                  <ul className="flex flex-col gap-1.5 text-texte-2">{lignes(s.garde_fous).map((l) => <li key={l}>{l}</li>)}</ul>
-                </div>
-                <div>
-                  <h3 className="text-xs uppercase tracking-wide text-texte-3 mb-2">Skills de copywriting en test</h3>
-                  <ul className="flex flex-wrap gap-1.5">{skills.map((k) => <li key={k}><code className="px-1.5 py-0.5 rounded bg-surface-3 text-[12px]">{k}</code></li>)}</ul>
-                  <p className="text-xs text-texte-3 mt-2">Résultats par variante (ouvertures, réponses, acceptations) dès que Brevo et ReachMCP seront reliés.</p>
                 </div>
               </aside>
             </div>
