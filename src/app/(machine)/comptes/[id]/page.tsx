@@ -5,6 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { ficheCompte } from "@/lib/donnees";
 import { FONCTIONS, estDecideur, fDate } from "@/lib/format";
 import { Action, BarreScore, Carte, Engagement, Famille, Palier, TitreSection, Vide } from "@/components/ui";
+import { Coordonnee } from "@/components/enrichir";
 
 export const metadata = { title: "Fiche compte · Machine à leads" };
 
@@ -35,12 +36,11 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      <div className="grid sm:grid-cols-4 gap-3">
+      <div className="grid sm:grid-cols-3 gap-3">
         {[
           { t: "Score sur 100", v: c.score },
           { t: "Adéquation sur 40", v: c.adequation },
           { t: "Chaleur sur 60", v: c.chaleur },
-          { t: "Destinataire si transmis", v: c.exclu ? "Exclu" : c.destinataire ?? "à attribuer" },
         ].map((x) => (
           <div key={x.t} className="rounded-xl border border-bord bg-surface px-4 py-3">
             <p className="text-xs text-texte-2">{x.t}</p>
@@ -85,12 +85,13 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
         <TitreSection titre={`Contacts (${contacts.length})`} aide="Décideurs marketing en premier." />
         {contacts.length ? (
           <div className="overflow-x-auto mt-3">
-            <table className="w-full text-sm min-w-[640px]">
+            <table className="w-full text-sm min-w-[820px]">
               <thead>
                 <tr className="text-left text-xs text-texte-3 border-b border-bord">
                   <th className="font-normal px-5 py-2">Contact</th>
                   <th className="font-normal px-3 py-2">Fonction</th>
                   <th className="font-normal px-3 py-2">Email</th>
+                  <th className="font-normal px-3 py-2">Téléphone</th>
                   <th className="font-normal px-5 py-2">LinkedIn</th>
                 </tr>
               </thead>
@@ -102,7 +103,8 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
                       <p className="text-xs text-texte-3">{ct.poste}</p>
                     </td>
                     <td className="px-3 py-2.5 text-texte-2">{estDecideur(ct.poste) ? "Décideur marketing" : FONCTIONS[ct.fonction] ?? ct.fonction}</td>
-                    <td className="px-3 py-2.5 text-texte-2">{ct.email ? "Oui" : "Non"}</td>
+                    <td className="px-3 py-2.5"><Coordonnee contactId={ct.id} champ="email" initiale={ct.email} autorise={ct.origine === "A"} /></td>
+                    <td className="px-3 py-2.5"><Coordonnee contactId={ct.id} champ="telephone" initiale={ct.telephone} autorise={ct.origine === "A"} /></td>
                     <td className="px-5 py-2.5">{ct.url_linkedin && <a href={ct.url_linkedin} target="_blank" rel="noopener" className="text-accent-fort hover:underline inline-flex items-center gap-1">Profil <ExternalLink className="w-3 h-3" /></a>}</td>
                   </tr>
                 ))}

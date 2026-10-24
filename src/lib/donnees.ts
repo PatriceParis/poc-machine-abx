@@ -112,8 +112,8 @@ export async function ficheCompte(id: number) {
             exists (select 1 from signaux_actifs a where a.id = s.id) as actif
      from signaux s join types_signal t on t.code = s.type_code left join contacts c on c.id = s.contact_id
      where s.compte_id = $1 order by (t.famille = 'adequation'), s.survenu_le desc`, [id]);
-  const contacts = await requete<{ id: number; prenom: string | null; nom: string | null; poste: string | null; fonction: string; url_linkedin: string | null; email: boolean }>(
-    `select id::int, prenom, nom, poste, fonction, url_linkedin, (email is not null) as email
+  const contacts = await requete<{ id: number; prenom: string | null; nom: string | null; poste: string | null; fonction: string; url_linkedin: string | null; email: string | null; telephone: string | null; origine: string }>(
+    `select id::int, prenom, nom, poste, fonction, url_linkedin, email, telephone, origine::text
      from contacts where compte_id = $1 order by (fonction = 'autre'), poste`, [id]);
   return { compte, signaux, contacts };
 }
