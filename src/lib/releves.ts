@@ -10,7 +10,12 @@ type Position = { title?: string; position?: string; companyName?: string; compa
 type Signal = { type: string; compte_id: number; contact_id: number | null; le: string; ref: string; detail: Record<string, unknown>; origine: "A" | "C" };
 
 const DECIDEUR = /\b(cmo|chief marketing|directeur.*marketing|directrice.*marketing|marketing director|director of marketing|head of marketing|vp marketing|directeur.*communication|directrice.*communication|chief brand|chief growth|head of growth)\b/i;
-export const estDecideur = (t?: string | null) => DECIDEUR.test(t || "");
+// « Alternante CMO Support », « assistante de la directrice marketing » : le titre cite le rôle sans l'occuper.
+const PAS_DECIDEUR = /alternan|stagi|\bintern\b|apprenti|assistant|support|junior/i;
+export const estDecideur = (t?: string | null) => DECIDEUR.test(t || "") && !PAS_DECIDEUR.test(t || "");
+// Une entreprise découverte par la surveillance n'entre dans la base que si elle est du secteur visé :
+// le filtre de secteur de la recherche porte sur le profil de la personne, pas sur son employeur.
+const SECTEURS_VISES = /banking|insurance|financial services|investment management|capital markets|investment banking|venture capital|banque|assurance|services financiers/i;
 
 export function fonctionDuPoste(poste?: string | null): string {
   const p = (poste || "").toLowerCase();
@@ -100,6 +105,7 @@ export async function interpreterPostes(items: Record<string, unknown>[], ref: R
       const debut = debutDe(p);
       if (!estDecideur(titreDe(p)) || !recent(debut)) continue;
       let compte = compteDe(p, ref);
+      if (!compte && !SECTEURS_VISES.test(p.company?.industry || "")) continue;
       if (!compte) {
         const [c] = await requete<Compte>(
           `insert into comptes (nom, url_linkedin, linkedin_id, activite, pays, b2b, origine)
