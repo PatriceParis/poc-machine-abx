@@ -32,6 +32,8 @@ export default async function Grille() {
   const { types, parametres } = await grille();
   const familles = ["adequation", "declencheur", "intention", "malus"];
   const p = new Map(parametres.map((x) => [x.cle, x.valeur]));
+  // Un lead direct porte le score du compte à 100, quels que soient ses points.
+  const leadDirect = new Set((p.get("types_lead_direct") as string[] | undefined) ?? []);
 
   return (
     <div className="flex flex-col gap-5">
@@ -73,7 +75,9 @@ export default async function Grille() {
                         <p className="first-letter:uppercase">{t.libelle}</p>
                         <p className="text-xs text-texte-3 chiffres">{t.code}</p>
                       </td>
-                      <td className="px-3 py-2.5 text-right chiffres">{t.points > 0 ? `+${t.points}` : t.points}</td>
+                      <td className="px-3 py-2.5 text-right chiffres">
+                        {leadDirect.has(t.code) ? <span className="font-semibold text-accent-fort" title="Lead direct : à contacter tout de suite">score 100</span> : t.points > 0 ? `+${t.points}` : t.points}
+                      </td>
                       <td className="px-3 py-2.5 text-texte-2">{t.expire_jours ? `${t.expire_jours} jours` : "permanente"}</td>
                       <td className="px-3 py-2.5 text-texte-2">{SOURCE[t.code] ?? "n.c."}</td>
                       <td className="px-5 py-2.5 text-right chiffres">{fNombre(t.n)}</td>
