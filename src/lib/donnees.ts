@@ -53,6 +53,8 @@ export async function cockpit() {
       (select count(*)::int from chaleur where famille = 'intention' and survenu_le >= now() - interval '30 days') as intentions_30,
       (select count(*)::int from chaleur where famille = 'declencheur' and survenu_le >= now() - interval '30 days') as declencheurs_30,
       (select count(*)::int from comptes_a_notifier) as a_traiter,
+      (select count(*)::int from comptes_a_notifier where action = 'Alerte nouveau décideur') as a_traiter_alertes,
+      (select count(*)::int from comptes_a_notifier where action = 'Transmettre') as a_traiter_transmettre,
       (select count(*)::int from evenements_bruts where source = 'site') as visites,
       (select count(*)::int from evenements_bruts where source = 'site' and charge->>'compte_id' is not null) as visites_identifiees,
       (select max(mis_a_jour_le) from comptes) as dernier_import`);
@@ -82,7 +84,7 @@ export async function cockpit() {
   return { chiffres, matrice, top, actions, sources, familles30 };
 }
 
-export type FiltresComptes = { palier?: string; engagement?: string; activite?: string; texte?: string; page: number };
+export type FiltresComptes = { palier?: string; engagement?: string; activite?: string; texte?: string; action?: string; traiter?: string; page: number };
 
 export async function listeComptes(f: FiltresComptes) {
   const conditions = ["not s.exclu"];
@@ -91,6 +93,8 @@ export async function listeComptes(f: FiltresComptes) {
   if (f.engagement) { params.push(f.engagement); conditions.push(`s.engagement = $${params.length}`); }
   if (f.activite) { params.push(f.activite); conditions.push(`s.activite = $${params.length}`); }
   if (f.texte) { params.push(`%${f.texte}%`); conditions.push(`s.nom ilike $${params.length}`); }
+  if (f.action) { params.push(f.action); conditions.push(`s.action = $${params.length}`); }
+  if (f.traiter === "1") conditions.push(`s.compte_id in (select compte_id from comptes_a_notifier)`);
   const where = conditions.join(" and ");
   const [{ n }] = await requete<{ n: number }>(`select count(*)::int as n from score_comptes s where ${where}`, params);
   const lignes = await requete<LigneCompte>(

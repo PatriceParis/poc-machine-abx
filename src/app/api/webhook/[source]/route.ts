@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
 import { requete } from "@/lib/db";
 import { safeEqual } from "@/lib/auth";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { lireJeu } from "@/lib/apify";
+import { ecrire as ecrireFullEnrich } from "@/lib/fullenrich";
 import { interpreterDecideurs, interpreterEngageurs, interpreterOffres, interpreterPostes, referentiel } from "@/lib/releves";
 
 // Réception des webhooks (Brevo, ReachMCP, formulaire du test, LinkedIn, Apify). Secret obligatoire,
 // dans l'en-tête x-cle ou le paramètre ?cle=. Tout est d'abord rangé tel quel dans evenements_bruts.
 // Seuls les relevés Apify sont interprétés ici, leur format ayant été lu sur de vraies sorties.
-const SOURCES = new Set(["brevo", "reachmcp", "test", "linkedin", "apify"]);
+const SOURCES = new Set(["brevo", "reachmcp", "test", "linkedin", "apify", "fullenrich"]);
+
+// FullEnrich signe chaque envoi : HMAC-SHA1 du corps brut avec la clé API, en hexadécimal, en-tête X-Signature-SHA1.
+function signatureFullEnrich(corps: string, signature: string | null) {
+  const k = process.env.FULLENRICH_API;
+  if (!k || !signature) return false;
+  const attendu = createHmac("sha1", k).update(corps, "utf8").digest("hex");
+  return attendu.length === signature.length && timingSafeEqual(Buffer.from(attendu), Buffer.from(signature));
+}
 export const maxDuration = 300;
 
 export async function POST(request: Request, { params }: { params: Promise<{ source: string }> }) {
@@ -19,6 +29,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ sou
   if (!secret || !safeEqual(donne, secret)) return NextResponse.json({ ok: false }, { status: 401 });
 
   const texte = await request.text();
+  if (source === "fullenrich") {
+    if (!signatureFullEnrich(texte, request.headers.get("x-signature-sha1"))) return NextResponse.json({ ok: false }, { status: 401 });
+    await ecrireFullEnrich(JSON.parse(texte));
+    return NextResponse.json({ ok: true });
+  }
   let charge: Record<string, unknown>;
   try {
     charge = JSON.parse(texte);

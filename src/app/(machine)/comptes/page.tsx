@@ -8,14 +8,14 @@ export const metadata = { title: "Comptes · Machine à leads" };
 
 export default async function Comptes({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;
-  const filtres = { palier: q(sp, "palier"), engagement: q(sp, "engagement"), activite: q(sp, "activite"), texte: q(sp, "texte") };
+  const filtres = { palier: q(sp, "palier"), engagement: q(sp, "engagement"), activite: q(sp, "activite"), texte: q(sp, "texte"), action: q(sp, "action"), traiter: q(sp, "traiter") };
   const page = Math.max(1, Number(q(sp, "page")) || 1);
   const { total, lignes, activites } = await listeComptes({ ...filtres, page });
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="font-titre text-4xl">Comptes</h1>
+        <h1 className="font-titre text-4xl">{filtres.traiter === "1" ? "Comptes à traiter" : "Comptes"}</h1>
         <span className="text-xs text-texte-3 chiffres">{fNombre(total)} comptes</span>
       </div>
       <Filtres action="/comptes">
@@ -35,13 +35,19 @@ export default async function Comptes({ searchParams }: { searchParams: Promise<
           <option value="tiede">Tiède</option>
           <option value="froid">Froid</option>
         </select>
+        <label className="sr-only" htmlFor="action">Action</label>
+        <select id="action" name="action" defaultValue={filtres.action} className={classeChamp}>
+          <option value="">Toutes les actions</option>
+          {["Transmettre", "Alerte nouveau décideur", "Reciblage et contenu", "Audience de comptes", "Reciblage", "À surveiller"].map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+        {filtres.traiter === "1" && <input type="hidden" name="traiter" value="1" />}
         <label className="sr-only" htmlFor="activite">Activité</label>
         <select id="activite" name="activite" defaultValue={filtres.activite} className={`${classeChamp} max-w-64`}>
           <option value="">Toutes les activités</option>
           {activites.map((a) => <option key={a.activite} value={a.activite}>{a.activite} ({a.n})</option>)}
         </select>
         <button type="submit" className="px-3 py-1.5 rounded-lg bg-surface-3 text-sm">Rechercher</button>
-        {(filtres.palier || filtres.engagement || filtres.activite || filtres.texte) && <Link href="/comptes" className="text-xs text-accent-fort hover:underline">Effacer les filtres</Link>}
+        {(filtres.palier || filtres.engagement || filtres.activite || filtres.texte || filtres.action || filtres.traiter) && <Link href="/comptes" className="text-xs text-accent-fort hover:underline">Effacer les filtres</Link>}
       </Filtres>
       <Carte>
         <div className="overflow-x-auto">

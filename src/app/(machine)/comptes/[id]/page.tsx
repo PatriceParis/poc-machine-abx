@@ -5,7 +5,7 @@ import { ExternalLink } from "lucide-react";
 import { ficheCompte } from "@/lib/donnees";
 import { FONCTIONS, estDecideur, fDate } from "@/lib/format";
 import { Action, BarreScore, Carte, Engagement, Famille, Palier, TitreSection, Vide } from "@/components/ui";
-import { Coordonnee } from "@/components/enrichir";
+import { Coordonnee, EmailsDecideurs } from "@/components/enrichir";
 
 export const metadata = { title: "Fiche compte · Machine à leads" };
 
@@ -82,7 +82,8 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
       </div>
 
       <Carte>
-        <TitreSection titre={`Contacts (${contacts.length})`} aide="Décideurs marketing en premier." />
+        <TitreSection titre={`Contacts (${contacts.length})`} aide="Décideurs marketing en premier. FullEnrich met 30 à 90 secondes par recherche ; le résultat s'enregistre même si vous quittez la page."
+          droite={<EmailsDecideurs compteId={c.compte_id} nombre={contacts.filter((ct) => ct.origine === "A" && !ct.email && estDecideur(ct.poste)).length} />} />
         {contacts.length ? (
           <div className="overflow-x-auto mt-3">
             <table className="w-full text-sm min-w-[820px]">

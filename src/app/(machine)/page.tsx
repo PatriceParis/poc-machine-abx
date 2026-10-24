@@ -45,7 +45,10 @@ export default async function Cockpit() {
         <Tuile titre="Signaux sur 30 jours" valeur={fNombre(n("signaux_30"))} aide={`${fNombre(n("signaux_total"))} au total`} />
         <Tuile titre="Contacts nommés" valeur={fNombre(n("contacts"))} aide={`${fNombre(n("contacts_cibles"))} en marketing, growth ou direction`} />
         <div className="col-span-2">
-          <Tuile accent titre="À traiter" valeur={fNombre(n("a_traiter"))} aide="comptes chauds ou alertes qui attendent une action commerciale" />
+          <Link href="/comptes?traiter=1" className="block rounded-xl hover:ring-2 hover:ring-accent-fort/60">
+            <Tuile accent titre="À traiter" valeur={fNombre(n("a_traiter"))}
+              aide={`${fNombre(n("a_traiter_alertes"))} alertes nouveau décideur, ${fNombre(n("a_traiter_transmettre"))} comptes chauds à transmettre. Ouvrir la liste`} />
+          </Link>
         </div>
         <Tuile titre="Intentions" valeur={fNombre(n("intentions_30"))} aide="visites, engagement, test, emails, 30 jours" />
         <Tuile titre="Déclencheurs" valeur={fNombre(n("declencheurs_30"))} aide="prises de poste, départs, recrutements, 30 jours" />
