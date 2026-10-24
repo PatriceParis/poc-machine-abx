@@ -13,25 +13,29 @@ async function credits(cle: string): Promise<number> {
   return Number(d.Credits ?? 0);
 }
 
-/** Rattrapage quotidien (tâche planifiée) : emails trouvés par FullEnrich pas encore vérifiés, faute de crédits ou
- *  d'une erreur passagère. Autant que les crédits le permettent, `limite` au plus. Les emails de la base Pharow,
- *  livrés avec l'export, ne sont pas concernés. */
-export async function verifierEnAttente(limite = 50): Promise<{ verifies: number; credits: number }> {
+/** Rattrapage (tâche planifiée) : emails du réservoir A pas encore vérifiés, ceux trouvés par FullEnrich d'abord,
+ *  puis ceux de la base Pharow. Autant que les crédits le permettent, par lots de 5 en parallèle, en s'arrêtant
+ *  avant la limite de durée de la fonction (60 s). */
+export async function verifierEnAttente(limite = 200): Promise<{ verifies: number; restants: number; credits: number }> {
   const cle = process.env.ZEROBOUNCE_API;
-  if (!cle) return { verifies: 0, credits: 0 };
+  if (!cle) return { verifies: 0, restants: 0, credits: 0 };
+  const debut = Date.now();
   const dispo = await credits(cle);
   const attente = await requete<{ id: number }>(
     `select ct.id::int from contacts ct join comptes co on co.id = ct.compte_id
-     where ct.origine = 'A' and ct.email is not null and ct.enrichi_le is not null and ct.email_verif is null
-       and ct.email_verifie_le is null and not co.exclu
-     order by ct.enrichi_le desc limit $1`, [Math.min(limite, dispo)]);
+     where ct.origine = 'A' and ct.email is not null and ct.email_verif is null and ct.email_verifie_le is null and not co.exclu
+     order by ct.enrichi_le desc nulls last, ct.id limit $1`, [Math.min(limite, dispo)]);
   let verifies = 0;
-  for (const c of attente) {
-    const v = await verifier(c.id);
-    if (v.erreur) break;
-    if (v.verif) verifies++;
+  let arret = false;
+  for (let i = 0; i < attente.length && !arret && Date.now() - debut < 40000; i += 5) {
+    const lot = await Promise.all(attente.slice(i, i + 5).map((c) => verifier(c.id)));
+    verifies += lot.filter((v) => v.verif).length;
+    arret = lot.some((v) => v.erreur);
   }
-  return { verifies, credits: dispo - verifies };
+  const [{ n }] = await requete<{ n: number }>(
+    `select count(*)::int as n from contacts ct join comptes co on co.id = ct.compte_id
+     where ct.origine = 'A' and ct.email is not null and ct.email_verif is null and not co.exclu`);
+  return { verifies, restants: n, credits: dispo - verifies };
 }
 
 /** Vérifie l'email du contact s'il n'a jamais été vérifié. Le contact est d'abord réservé (email_verifie_le), pour
