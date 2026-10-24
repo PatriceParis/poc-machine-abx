@@ -9,3 +9,7 @@ next-env.d.ts
 .vercel
 *.csv
 !.env.example
+.env*
+.agents/
+.claude/
+skills-lock.json
