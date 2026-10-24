@@ -29,12 +29,12 @@ const COLONNES_COMPTE = `s.compte_id::int as compte_id, s.nom, s.activite, s.tra
 export const SOURCES = [
   { cle: "pharow", nom: "Base de ciblage Pharow", detail: "comptes, contacts et adéquation", nature: "Import", types: [] as string[], evenements: null as string | null },
   { cle: "postes", nom: "Prises de poste et départs", detail: "Apify, relevé mensuel des décideurs", nature: "Machine", types: ["nouveau_decideur_marketing", "depart_decideur_marketing", "champion_arrive"], evenements: null },
-  { cle: "engageurs", nom: "Engageurs des posts LinkedIn", detail: "Apify, posts de Yannig, Gilles et des pairs", nature: "Machine", types: ["engagement_post", "commentaire_roadmap", "engagement_pairs"], evenements: "apify" },
+  { cle: "engageurs", nom: "Engageurs des posts LinkedIn", detail: "Apify, posts de Yannig, Gilles et des pairs", nature: "Machine", types: ["engagement_post", "commentaire_post", "engagement_pairs"], evenements: "apify" },
   { cle: "site", nom: "Visites de hirondo.co", detail: "script maison et IPinfo Lite", nature: "Machine", types: ["visite_site", "visite_page_cle", "visites_repetees"], evenements: "site" },
   { cle: "offres", nom: "Offres d'emploi marketing ops", detail: "Apify, relevé hebdomadaire", nature: "Machine", types: ["recrutement_marketing_ops"], evenements: null },
   { cle: "test", nom: "Test de maturité ABM", detail: "formulaire, webhook", nature: "Webhook", types: ["test_complete", "test_profil_outils"], evenements: "test" },
   { cle: "linkedin", nom: "LinkedIn Ads", detail: "formulaires, vidéo, entreprises engagées", nature: "API", types: ["formulaire_natif", "video_50", "entreprise_engagee_pub"], evenements: "linkedin" },
-  { cle: "brevo", nom: "Emails Brevo", detail: "ouvertures, clics, réponses", nature: "Webhook", types: ["email_ouvert_2x", "clic_lien", "email_reponse"], evenements: "brevo" },
+  { cle: "brevo", nom: "Emails Brevo", detail: "ouvertures, clics, réponses", nature: "Webhook", types: ["email_ouvert", "email_clic", "email_reponse"], evenements: "brevo" },
   { cle: "reachmcp", nom: "ReachMCP", detail: "visites de profil, réponses LinkedIn", nature: "Webhook", types: ["visite_profil", "reponse_linkedin"], evenements: "reachmcp" },
   { cle: "crm", nom: "CRM Notion Hirondo", detail: "membres en mission, dormants", nature: "Import", types: ["membre_hirondo_en_mission", "contact_dormant_crm"], evenements: null },
 ];
@@ -106,8 +106,8 @@ export async function listeComptes(f: FiltresComptes) {
 }
 
 export async function ficheCompte(id: number) {
-  const [compte] = await requete<LigneCompte & { site: string | null; url_linkedin: string | null; exclu: boolean; motif_exclusion: string | null; destinataire: string | null; a_transmettre: boolean }>(
-    `select ${COLONNES_COMPTE}, s.site, s.url_linkedin, s.exclu, s.motif_exclusion, s.destinataire, s.a_transmettre
+  const [compte] = await requete<LigneCompte & { site: string | null; url_linkedin: string | null; exclu: boolean; motif_exclusion: string | null; destinataire: string | null; a_transmettre: boolean; lead_direct: boolean }>(
+    `select ${COLONNES_COMPTE}, s.site, s.url_linkedin, s.exclu, s.motif_exclusion, s.destinataire, s.a_transmettre, s.lead_direct
      from score_comptes s where s.compte_id = $1`, [id]);
   if (!compte) return null;
   const signaux = await requete<{ id: number; type_code: string; libelle: string; famille: string; points: number; expire_jours: number | null; survenu_le: string; source: string; detail: Record<string, unknown>; contact: string | null; contact_id: number | null; compte_contact: number | null; actif: boolean }>(

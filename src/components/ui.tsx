@@ -59,14 +59,16 @@ export function Famille({ famille }: { famille: string }) {
   );
 }
 
-/** Barre de score sur 100 : adéquation (gris, 40 au plus) puis chaleur (bleu, 60 au plus), déjà plafonnées par la base. */
-export function BarreScore({ adequation, chaleur }: { adequation: number; chaleur: number }) {
+/** Barre de score sur 100 : adéquation (gris, 40 au plus) puis chaleur (bleu, 60 au plus), déjà plafonnées par la base.
+ *  Un lead direct (test complété, formulaire LinkedIn) vaut 100 : la partie bleue comble alors la barre. */
+export function BarreScore({ adequation, chaleur, score }: { adequation: number; chaleur: number; score?: number }) {
   const echelle = 100;
   const a = Math.max(0, Math.min(adequation, 40));
-  const c = Math.max(0, Math.min(chaleur, 60));
+  const total = Math.max(0, Math.min(score ?? a + Math.min(chaleur, 60), echelle));
+  const c = Math.max(0, total - a);
   return (
     <div className="flex items-center gap-2 min-w-[150px]">
-      <span className="chiffres w-8 text-right font-medium">{a + c}</span>
+      <span className="chiffres w-8 text-right font-medium">{total}</span>
       <div className="flex-1 h-1.5 rounded-full bg-surface-3 overflow-hidden flex" aria-hidden>
         <span style={{ width: `${(a / echelle) * 100}%` }} className="bg-froid" />
         <span style={{ width: `${(c / echelle) * 100}%` }} className="bg-accent" />

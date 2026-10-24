@@ -72,7 +72,7 @@ export default async function Comptes({ searchParams }: { searchParams: Promise<
                     <td className="px-3 py-2.5 text-texte-2">{l.activite ?? "n.c."}</td>
                     <td className="px-3 py-2.5 text-texte-2 chiffres whitespace-nowrap">{l.tranche_effectif ?? "n.c."}</td>
                     <td className="px-3 py-2.5"><span className="flex items-center gap-2"><Palier palier={l.palier} /><Engagement engagement={l.engagement} /></span></td>
-                    <td className="px-3 py-2.5"><BarreScore adequation={l.adequation} chaleur={l.chaleur} /></td>
+                    <td className="px-3 py-2.5"><BarreScore adequation={l.adequation} chaleur={l.chaleur} score={l.score} /></td>
                     <td className="px-3 py-2.5"><Action action={l.action} /></td>
                     <td className="px-3 py-2.5 text-right chiffres">{l.nb_signaux}</td>
                     <td className="px-5 py-2.5 text-texte-2 whitespace-nowrap">{l.dernier_signal ? fDate(l.dernier_signal) : "Aucun"}</td>

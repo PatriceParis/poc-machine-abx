@@ -273,8 +273,8 @@ export async function interpreterEngageurs(items: Record<string, unknown>[], pos
     const existant = ref.contactParId.get(idPersonne) ?? (url ? ref.contactParUrl.get(urlNormale(url)!) : undefined)
       ?? contactParNom(ref, compte.id, actor.firstName as string, actor.lastName as string);
     const contactId = existant?.id ?? await creerContact(compte.id, { url, linkedin_id: idPersonne, prenom: actor.firstName as string, nom: actor.lastName as string, poste: titreDe(p) }, "C", ref);
-    const texte = String(it.commentary ?? it.text ?? "");
-    const type = nature === "commentaires" && /roadmap/i.test(texte) ? "commentaire_roadmap" : post.nature === "pair" ? "engagement_pairs" : "engagement_post";
+    // Tout commentaire sous un post de Yannig ou Gilles compte, quel qu'en soit le texte (Patrice, 24/10/2026).
+    const type = post.nature === "pair" ? "engagement_pairs" : nature === "commentaires" ? "commentaire_post" : "engagement_post";
     signaux.push({ type, compte_id: compte.id, contact_id: contactId, le: new Date().toISOString(),
       ref: `${nature}:${post.url}:${idPersonne || contactId}`, detail: { post: post.url, nature, poste: titreDe(p) }, origine: "C" });
   }

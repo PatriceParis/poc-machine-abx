@@ -12,10 +12,10 @@ const SOURCE: Record<string, string> = {
   nouveau_decideur_marketing: "Apify, recherche mensuelle et presse", depart_decideur_marketing: "Apify, relecture mensuelle",
   champion_arrive: "Apify, relecture des profils engagés", recrutement_marketing_ops: "Apify, offres LinkedIn",
   visite_site: "Script du site et IPinfo Lite", visite_page_cle: "Script du site et IPinfo Lite", visites_repetees: "Script du site et IPinfo Lite",
-  commentaire_roadmap: "Apify, engageurs des posts", engagement_post: "Apify, engageurs des posts", engagement_pairs: "Apify, engageurs des posts",
+  commentaire_post: "Apify, engageurs des posts", engagement_post: "Apify, engageurs des posts", engagement_pairs: "Apify, engageurs des posts",
   visite_profil: "ReachMCP", reponse_linkedin: "ReachMCP", test_complete: "Formulaire du test", test_profil_outils: "Formulaire du test",
   formulaire_natif: "API LinkedIn Ads", video_50: "API LinkedIn Ads", entreprise_engagee_pub: "API LinkedIn Ads",
-  clic_lien: "Brevo", email_ouvert_2x: "Brevo", email_reponse: "Brevo",
+  email_clic: "Brevo", email_ouvert: "Brevo", email_reponse: "Brevo",
 };
 
 const SEUILS = [
