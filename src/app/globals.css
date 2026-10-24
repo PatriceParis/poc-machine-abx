@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+/* Un seul thème, sombre, comme la salle de contrôle qu'il imite : fond et couleurs posés explicitement. */
+:root {
+  --fond: #0b1017;
+  --surface: #111923;
+  --surface-2: #17212d;
+  --surface-3: #1d2937;
+  --bord: #233142;
+  --bord-fort: #2f4054;
+  --texte: #e7ecf2;
+  --texte-2: #9aa8b8;
+  --texte-3: #6b7a8c;
+  --or: #c9a45e;
+  --or-fort: #e2bf78;
+  --or-pale: rgba(201, 164, 94, 0.14);
+  --chaud: #e08a5e;
+  --chaud-pale: rgba(224, 138, 94, 0.15);
+  --tiede: #c9a45e;
+  --froid: #7b97b4;
+  --froid-pale: rgba(123, 151, 180, 0.14);
+  --ok: #86b393;
+  --alerte: #d0705f;
+  --alerte-pale: rgba(208, 112, 95, 0.15);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-fond: var(--fond);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-bord: var(--bord);
+  --color-bord-fort: var(--bord-fort);
+  --color-texte: var(--texte);
+  --color-texte-2: var(--texte-2);
+  --color-texte-3: var(--texte-3);
+  --color-or: var(--or);
+  --color-or-fort: var(--or-fort);
+  --color-or-pale: var(--or-pale);
+  --color-chaud: var(--chaud);
+  --color-chaud-pale: var(--chaud-pale);
+  --color-froid: var(--froid);
+  --color-froid-pale: var(--froid-pale);
+  --color-ok: var(--ok);
+  --color-alerte: var(--alerte);
+  --color-alerte-pale: var(--alerte-pale);
+  --font-sans: var(--police-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--police-mono), ui-monospace, SFMono-Regular, Consolas, monospace;
+  --font-titre: var(--police-titre), Georgia, serif;
+}
+
+html,
+body {
+  background: var(--fond);
+  color: var(--texte);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+.chiffres {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.etiquette {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--texte-3);
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--or);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}
