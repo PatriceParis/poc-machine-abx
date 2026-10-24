@@ -97,9 +97,16 @@ export async function ecrire(d: Resultat): Promise<{ contact_id: number; champ: 
     if (champ === "email") {
       const e = ligne.contact_info?.most_probable_work_email;
       // « introuvable » distingue une recherche sans résultat d'une recherche jamais faite (enrichi_le sert aussi au téléphone).
+      // Un email nouveau remplace l'ancien (refusé, en général) : l'ancien passe dans le suivi et la vérification
+      // repart à zéro, sinon ZeroBounce garderait le verdict de l'ancienne adresse.
+      const change = `$2::text is not null and lower(coalesce(email, '')) <> lower($2)`;
       await requete(
         `update contacts set email = coalesce($2, email),
-                email_source = case when $2::text is not null and email is null then 'fullenrich' else email_source end,
+                suivi = case when ${change} and email is not null then coalesce(suivi, '{}'::jsonb) || jsonb_build_object('ancien_email', email) else suivi end,
+                email_source = case when ${change} then 'fullenrich' else email_source end,
+                email_verif = case when ${change} then null else email_verif end,
+                email_verif_detail = case when ${change} then null else email_verif_detail end,
+                email_verifie_le = case when ${change} then null else email_verifie_le end,
                 email_statut = case when $2::text is not null then $3 when email is null then 'introuvable' else email_statut end,
                 enrichi_le = now() where id = $1`,
         [id, e?.email ?? null, e?.status ?? null]);
