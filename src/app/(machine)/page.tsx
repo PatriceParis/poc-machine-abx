@@ -35,7 +35,10 @@ export default async function Cockpit() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="font-titre text-4xl">Cockpit · {fNombre(n("comptes"))} comptes suivis</h1>
+        <div>
+          <h1 className="font-titre text-4xl">Cockpit Hirondo ABX</h1>
+          <p className="text-sm text-texte-2 mt-1 chiffres">{fNombre(n("comptes"))} comptes suivis</p>
+        </div>
         <Link href="/comptes" className="text-sm text-accent-fort hover:underline underline-offset-4">Tous les comptes</Link>
       </div>
 
