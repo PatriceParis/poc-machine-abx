@@ -4,6 +4,7 @@ import { listeContacts } from "@/lib/donnees";
 import { FONCTIONS, estDecideur, fNombre, q } from "@/lib/format";
 import { Carte, Engagement, Pagination, Palier, Vide } from "@/components/ui";
 import { Filtres, classeChamp } from "@/components/filtres";
+import { MarqueVerif } from "@/components/enrichir";
 
 export const metadata = { title: "Contacts · Machine à leads" };
 
@@ -69,7 +70,10 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
                     <td className="px-3 py-2.5 text-texte-2">{estDecideur(ct.poste) ? "Décideur marketing" : FONCTIONS[ct.fonction] ?? ct.fonction}</td>
                     <td className="px-3 py-2.5 text-right chiffres">{ct.score}</td>
                     <td className="px-3 py-2.5"><Engagement engagement={ct.engagement} /></td>
-                    <td className="px-3 py-2.5 text-texte-2">{ct.email ? "Oui" : "Non"}</td>
+                    <td className="px-3 py-2.5 text-texte-2">
+                      {ct.email ? "Oui" : "Non"}
+                      {ct.email && ct.email_verif && <MarqueVerif verif={ct.email_verif} detail={ct.email_verif_detail} />}
+                    </td>
                     <td className="px-5 py-2.5">{ct.url_linkedin && <a href={ct.url_linkedin} target="_blank" rel="noopener" className="text-accent-fort hover:underline inline-flex items-center gap-1">Profil <ExternalLink className="w-3 h-3" /></a>}</td>
                   </tr>
                 ))}

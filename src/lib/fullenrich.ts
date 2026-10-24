@@ -2,6 +2,7 @@
 // Les résultats arrivent par webhook (signé HMAC-SHA1 avec la clé) et, en secours, par lecture à la demande.
 // Une recherche prend 30 à 90 secondes par contact (cascade d'une vingtaine de fournisseurs).
 import { requete } from "@/lib/db";
+import { verifier } from "@/lib/zerobounce";
 
 const API = "https://app.fullenrich.com/api/v2/contact/enrich/bulk";
 export const CHAMPS = { email: "contact.work_emails", telephone: "contact.phones" } as const;
@@ -102,12 +103,17 @@ export async function ecrire(d: Resultat): Promise<{ contact_id: number; champ: 
       if (e?.email) {
         await requete(`update comptes set domaine_email = coalesce(domaine_email, split_part($2, '@', 2)) where id = (select compte_id from contacts where id = $1)`, [id, e.email]);
       }
-      sortie.push({ contact_id: id, champ, valeur: e?.email ?? null, detail: e?.status ?? null });
+      sortie.push({ contact_id: id, champ, valeur: e?.email ?? null, detail: e?.status ?? null, verif: null as string | null });
     } else {
       const t = ligne.contact_info?.most_probable_phone;
       await requete(`update contacts set telephone = coalesce($2, telephone), enrichi_le = now() where id = $1`, [id, t?.number ?? null]);
-      sortie.push({ contact_id: id, champ, valeur: t?.number ?? null, detail: t?.line_status ?? null });
+      sortie.push({ contact_id: id, champ, valeur: t?.number ?? null, detail: t?.line_status ?? null, verif: null as string | null });
     }
+  }
+  // Tout email trouvé passe aussitôt par ZeroBounce (1 crédit). Vérifications en parallèle, par lots de 5.
+  const aVerifier = sortie.filter((x) => x.champ === "email" && x.valeur);
+  for (let i = 0; i < aVerifier.length; i += 5) {
+    await Promise.all(aVerifier.slice(i, i + 5).map(async (x) => { x.verif = (await verifier(x.contact_id)).verif; }));
   }
   return sortie;
 }

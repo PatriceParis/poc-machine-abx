@@ -4,7 +4,27 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Mail, Phone, Users } from "lucide-react";
 
-type Resultat = { contact_id: number; champ: string; valeur: string | null };
+type Resultat = { contact_id: number; champ: string; valeur: string | null; verif?: string | null };
+
+const DETAILS: Record<string, string> = {
+  mailbox_not_found: "boîte inexistante", no_dns_entries: "domaine sans DNS", failed_syntax_check: "syntaxe invalide",
+  possible_typo: "faute de frappe probable", does_not_accept_mail: "domaine qui ne reçoit pas", mailbox_quota_exceeded: "boîte pleine",
+  role_based: "adresse générique", role_based_catch_all: "adresse générique sur un domaine qui accepte tout",
+  global_suppression: "liste de suppression", possible_trap: "piège à spam probable", disposable: "adresse jetable",
+  antispam_system: "anti-spam du serveur", greylisted: "liste grise", timeout_exceeded: "serveur trop lent",
+  mail_server_did_not_respond: "serveur muet", failed_smtp_connection: "connexion refusée", accept_all: "domaine qui accepte tout",
+};
+
+/** Marque ZeroBounce derrière l'email : ✅ délivrable, ❌ à ne pas écrire, ❔ ni l'un ni l'autre (catch-all, inconnu). */
+export function MarqueVerif({ verif, detail }: { verif: string; detail: string | null }) {
+  const d = detail ? DETAILS[detail] ?? detail.replaceAll("_", " ") : null;
+  const [signe, texte] =
+    verif === "valid" ? ["✅", "Délivrable selon ZeroBounce"]
+    : verif === "catch-all" ? ["❔", "Domaine catch-all : il accepte toute adresse, la boîte n'est pas confirmée"]
+    : verif === "unknown" ? ["❔", `Non vérifiable${d ? ` (${d})` : ""}`]
+    : ["❌", `Non délivrable selon ZeroBounce${d ? ` (${d})` : ""}`];
+  return <span title={texte} aria-label={texte} className="ml-1 cursor-help">{signe}</span>;
+}
 
 // Interroge le résultat toutes les 5 secondes pendant trois minutes au plus. Le webhook de FullEnrich écrit de
 // toute façon le résultat en base : quitter la page n'empêche rien.
@@ -18,10 +38,28 @@ async function attendre(id: string): Promise<Resultat[] | null> {
 }
 
 /** `etat` : résultat d'une recherche précédente ou lancée automatiquement (« Introuvable le 24 oct. »). */
-export function Coordonnee({ contactId, champ, initiale, autorise, etat = null }: { contactId: number; champ: "email" | "telephone"; initiale: string | null; autorise: boolean; etat?: string | null }) {
+export function Coordonnee({ contactId, champ, initiale, autorise, etat = null, verifInitiale = null, verifDetail = null }: {
+  contactId: number; champ: "email" | "telephone"; initiale: string | null; autorise: boolean; etat?: string | null;
+  verifInitiale?: string | null; verifDetail?: string | null;
+}) {
   const [valeur, setValeur] = useState(initiale);
   const [enCours, setEnCours] = useState(false);
   const [message, setMessage] = useState<string | null>(etat);
+  const [verif, setVerif] = useState({ statut: verifInitiale, detail: verifDetail });
+
+  const verifierEmail = async () => {
+    setEnCours(true);
+    setMessage(null);
+    try {
+      const d = (await (await fetch("/api/verifier", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contact_id: contactId }) })).json()) as { verif?: string | null; detail?: string | null; erreur?: string };
+      if (d.verif) setVerif({ statut: d.verif, detail: d.detail ?? null });
+      else setMessage(d.erreur?.includes("credits") ? "Crédits ZeroBounce épuisés" : d.erreur ?? "Vérification impossible");
+    } catch {
+      setMessage("Problème de connexion");
+    } finally {
+      setEnCours(false);
+    }
+  };
   const Icone = champ === "email" ? Mail : Phone;
   const libelle = champ === "email" ? "Chercher email" : "Chercher téléphone";
 
@@ -34,9 +72,10 @@ export function Coordonnee({ contactId, champ, initiale, autorise, etat = null }
       if (!d.enrichment_id) return setMessage(d.erreur ?? "Recherche refusée");
       setMessage("30 à 90 secondes, vous pouvez quitter la page");
       const resultats = await attendre(d.enrichment_id);
-      const trouve = resultats?.find((x) => x.contact_id === contactId)?.valeur ?? null;
+      const ligne = resultats?.find((x) => x.contact_id === contactId);
+      const trouve = ligne?.valeur ?? null;
       if (resultats === null) setMessage("Toujours en cours, le résultat s'affichera à la prochaine visite");
-      else if (trouve) { setValeur(trouve); setMessage(null); }
+      else if (trouve) { setValeur(trouve); setVerif({ statut: ligne?.verif ?? null, detail: null }); setMessage(null); }
       else setMessage("Introuvable");
     } catch {
       setMessage("Problème de connexion");
@@ -45,7 +84,23 @@ export function Coordonnee({ contactId, champ, initiale, autorise, etat = null }
     }
   };
 
-  if (valeur) return <span className="chiffres text-xs text-texte break-all">{valeur}</span>;
+  if (valeur) {
+    return (
+      <span className="flex flex-col items-start gap-1">
+        <span className="chiffres text-xs text-texte break-all">
+          {valeur}
+          {champ === "email" && verif.statut && <MarqueVerif verif={verif.statut} detail={verif.detail} />}
+        </span>
+        {champ === "email" && !verif.statut && autorise && (
+          <button type="button" onClick={verifierEmail} disabled={enCours} title="Vérifier la délivrabilité avec ZeroBounce (1 crédit)"
+            className="text-[11px] text-accent-fort hover:underline disabled:opacity-50">
+            {enCours ? "Vérification…" : "Vérifier"}
+          </button>
+        )}
+        {message && <span className="text-[11px] text-texte-3">{message}</span>}
+      </span>
+    );
+  }
   return (
     <span className="flex flex-col items-start gap-1">
       <button type="button" onClick={chercher} disabled={!autorise || enCours}

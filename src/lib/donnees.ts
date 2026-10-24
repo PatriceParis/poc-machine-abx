@@ -116,8 +116,9 @@ export async function ficheCompte(id: number) {
             exists (select 1 from signaux_actifs a where a.id = s.id) as actif
      from signaux s join types_signal t on t.code = s.type_code left join contacts c on c.id = s.contact_id
      where s.compte_id = $1 order by (t.famille = 'adequation'), s.survenu_le desc`, [id]);
-  const contacts = await requete<{ id: number; prenom: string | null; nom: string | null; poste: string | null; fonction: string; url_linkedin: string | null; email: string | null; telephone: string | null; origine: string; enrichi_le: string | null; email_statut: string | null }>(
-    `select id::int, prenom, nom, poste, fonction, url_linkedin, email, telephone, origine::text, enrichi_le, email_statut
+  const contacts = await requete<{ id: number; prenom: string | null; nom: string | null; poste: string | null; fonction: string; url_linkedin: string | null; email: string | null; telephone: string | null; origine: string; enrichi_le: string | null; email_statut: string | null; email_verif: string | null; email_verif_detail: string | null }>(
+    `select id::int, prenom, nom, poste, fonction, url_linkedin, email, telephone, origine::text, enrichi_le, email_statut,
+            email_verif, email_verif_detail
      from contacts where compte_id = $1 order by (fonction = 'autre'), poste`, [id]);
   return { compte, signaux, contacts };
 }
@@ -152,8 +153,9 @@ export async function listeContacts(f: { fonction?: string; palier?: string; tex
   const where = conditions.join(" and ");
   const from = `from contacts ct join comptes c on c.id = ct.compte_id join score_comptes sc on sc.compte_id = c.id where ${where}`;
   const [{ n }] = await requete<{ n: number }>(`select count(*)::int as n ${from}`, params);
-  const lignes = await requete<{ id: number; prenom: string | null; nom: string | null; poste: string | null; fonction: string; url_linkedin: string | null; email: boolean; compte_id: number; compte: string; palier: string; engagement: string; score: number }>(
+  const lignes = await requete<{ id: number; prenom: string | null; nom: string | null; poste: string | null; fonction: string; url_linkedin: string | null; email: boolean; email_verif: string | null; email_verif_detail: string | null; compte_id: number; compte: string; palier: string; engagement: string; score: number }>(
     `select ct.id::int, ct.prenom, ct.nom, ct.poste, ct.fonction, ct.url_linkedin, (ct.email is not null) as email,
+            ct.email_verif, ct.email_verif_detail,
             c.id::int as compte_id, c.nom as compte, sc.palier, sc.engagement, sc.score
      ${from} order by sc.score desc, (ct.fonction = 'autre'), c.nom, ct.nom limit 50 offset ${(f.page - 1) * 50}`, params);
   return { total: n, lignes };

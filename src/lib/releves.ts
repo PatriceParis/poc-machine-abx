@@ -96,7 +96,7 @@ async function creerContact(compteId: number, d: { url?: string; linkedin_id?: s
 async function deplacerContact(contact: Contact, vers: Compte, poste: string, ref: Referentiel) {
   const ancien = ref.comptes.find((c) => c.id === contact.compte_id)?.nom ?? null;
   await requete(
-    `update contacts set compte_id = $2, poste = $3, fonction = $4, email = null,
+    `update contacts set compte_id = $2, poste = $3, fonction = $4, email = null, email_verif = null, email_verif_detail = null, email_verifie_le = null,
             suivi = coalesce(suivi, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object('parti_de', $5::text, 'ancien_email', email)),
             suivi_le = now(), mis_a_jour_le = now()
      where id = $1`,
@@ -226,6 +226,9 @@ export async function interpreterDecideurs(items: Record<string, unknown>[], ref
       // Rattaché au nouveau compte : l'email de l'ancien employeur passe dans le suivi.
       `update contacts c set suivi = v.s::jsonb || case when v.co is not null and c.email is not null then jsonb_build_object('ancien_email', c.email) else '{}'::jsonb end,
               email = case when v.co is not null then null else c.email end,
+              email_verif = case when v.co is not null then null else c.email_verif end,
+              email_verif_detail = case when v.co is not null then null else c.email_verif_detail end,
+              email_verifie_le = case when v.co is not null then null else c.email_verifie_le end,
               suivi_le = now(), compte_id = coalesce(v.co, c.compte_id), poste = coalesce(v.p, c.poste), mis_a_jour_le = now()
        from unnest($1::bigint[], $2::text[], $3::bigint[], $4::text[]) as v(id, s, co, p) where c.id = v.id`,
       [suivis.map((s) => s.id), suivis.map((s) => s.suivi), suivis.map((s) => s.compte), suivis.map((s) => s.poste)]);

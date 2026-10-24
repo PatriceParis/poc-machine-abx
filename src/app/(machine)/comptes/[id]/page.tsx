@@ -123,6 +123,7 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
                     <td className="px-3 py-2.5 text-texte-2">{estDecideur(ct.poste) ? "Décideur marketing" : FONCTIONS[ct.fonction] ?? ct.fonction}</td>
                     <td className="px-3 py-2.5">
                       <Coordonnee contactId={ct.id} champ="email" initiale={ct.email} autorise={ct.origine === "A"}
+                        verifInitiale={ct.email_verif} verifDetail={ct.email_verif_detail}
                         etat={ct.email ? null : ct.email_statut === "introuvable" ? `Introuvable le ${fDate(ct.enrichi_le)}` : recent(ct.enrichi_le) ? "Recherche en cours" : null} />
                     </td>
                     <td className="px-3 py-2.5"><Coordonnee contactId={ct.id} champ="telephone" initiale={ct.telephone} autorise={ct.origine === "A"} /></td>
