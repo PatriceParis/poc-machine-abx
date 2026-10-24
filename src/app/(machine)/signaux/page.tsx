@@ -6,9 +6,11 @@ import { Filtres, classeChamp } from "@/components/filtres";
 
 export const metadata = { title: "Signaux · Machine à leads" };
 
+// Le contact et son poste sont déjà affichés : on n'ajoute que ce qui précise le signal.
 function precision(detail: Record<string, unknown>): string {
-  const morceaux = [detail.page, detail.reseau, detail.poste, detail.nom].filter((v) => typeof v === "string" && v);
-  return morceaux.join(" · ");
+  const vers = typeof detail.vers === "string" && detail.vers ? `parti chez ${detail.vers}` : null;
+  const venant = typeof detail.venant_de === "string" && detail.venant_de ? `venant de ${detail.venant_de}` : null;
+  return [detail.page, detail.reseau, vers, venant].filter((v) => typeof v === "string" && v).join(" · ");
 }
 
 export default async function Signaux({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
