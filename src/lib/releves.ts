@@ -64,7 +64,8 @@ export function compteDe(p: Position, ref: Referentiel): Compte | null {
   if (n.length < 3) return null;
   const candidats = ref.comptes.filter((c) => {
     const nc = normaliser(c.nom);
-    return nc === n || (Math.min(nc.length, n.length) >= 6 && (` ${n} `.includes(` ${nc} `) || ` ${nc} `.includes(` ${n} `)));
+    // Un nom court ne vaut que s'il est identique : « Europe » ne doit pas capter « Acushnet Europe ».
+    return nc === n || (Math.min(nc.length, n.length) >= 8 && (` ${n} `.includes(` ${nc} `) || ` ${nc} `.includes(` ${n} `)));
   });
   candidats.sort((a, b) => (b.effectif ?? 0) - (a.effectif ?? 0));
   return candidats[0] ?? null;
@@ -215,9 +216,16 @@ export async function interpreterDecideurs(items: Record<string, unknown>[], ref
 
 /** Offres d'emploi LinkedIn de la semaine (curious_coder/linkedin-jobs-scraper) : une offre d'un compte de la base,
  *  reconnu par l'adresse de sa page LinkedIn puis par son nom, fait un signal de recrutement. */
+// La recherche LinkedIn élargit les mots-clés (« Process Owner », « Digital Analytics ») : seul compte un intitulé
+// qui parle vraiment d'outillage marketing, de CRM, d'ABM ou d'opérations, hors alternance, stage et junior.
+const OFFRE_PERTINENTE = /marketing op|marketing automation|automation|\bcrm\b|\babm\b|account[- ]based|revops|rev ?ops|revenue op|revenue system|growth op|martech|marketing tech|demand gen|lifecycle|marketing digital|directeur marketing|directrice marketing|head of marketing|\bcmo\b/i;
+const OFFRE_EXCLUE = /alternan|stage|stagiaire|apprenti|intern|junior|graduate|v\.?i\.?e|freelance/i;
+export const offrePertinente = (titre?: string) => OFFRE_PERTINENTE.test(titre || "") && !OFFRE_EXCLUE.test(titre || "");
+
 export async function interpreterOffres(items: Record<string, unknown>[], ref: Referentiel): Promise<number> {
   const signaux: Signal[] = [];
   for (const it of items) {
+    if (!offrePertinente(it.title as string)) continue;
     const p: Position = { companyName: it.companyName as string, companyLinkedinUrl: it.companyLinkedinUrl as string };
     const compte = compteDe(p, ref);
     if (!compte || compte.exclu) continue;
