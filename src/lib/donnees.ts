@@ -122,8 +122,9 @@ export async function listeSignaux(f: { famille?: string; page: number }) {
   const params: unknown[] = [];
   let filtre = "t.famille in ('declencheur', 'intention')";
   if (f.famille === "declencheur" || f.famille === "intention") { params.push(f.famille); filtre = `t.famille = $1`; }
+  filtre += " and not c.exclu";
   const [{ n }] = await requete<{ n: number }>(
-    `select count(*)::int as n from signaux s join types_signal t on t.code = s.type_code where ${filtre}`, params);
+    `select count(*)::int as n from signaux s join types_signal t on t.code = s.type_code join comptes c on c.id = s.compte_id where ${filtre}`, params);
   const lignes = await requete<{ id: number; survenu_le: string; source: string; detail: Record<string, unknown>; libelle: string; famille: string; points: number; compte_id: number; compte: string; palier: string; score: number; contact: string | null; poste: string | null }>(
     `select s.id::int, s.survenu_le, s.source, s.detail, t.libelle, t.famille, t.points, c.id::int as compte_id, c.nom as compte,
             sc.palier, sc.score, nullif(trim(coalesce(ct.prenom, '') || ' ' || coalesce(ct.nom, '')), '') as contact, ct.poste

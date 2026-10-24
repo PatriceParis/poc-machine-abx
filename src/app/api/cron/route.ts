@@ -10,7 +10,7 @@ import { ACTEURS, lancer } from "@/lib/apify";
 // Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|engageurs lance à la demande.
 export const maxDuration = 60;
 
-const PLAFONDS = { postes: 0.5, decideurs: 2.5, engageurs: 1 };
+const PLAFONDS = { postes: 0.5, decideurs: 2.5, engageurs: 1, manquants: 1.5 };
 
 async function dernier(nature: string): Promise<Date | null> {
   const [l] = await requete<{ le: string | null }>(`select max(lance_le) as le from releves where nature = $1 and statut <> 'échec'`, [nature]);
@@ -50,6 +50,20 @@ export async function GET(request: Request) {
     if (urls.length) {
       await noter("decideurs", await lancer(ACTEURS.decideurs, { profileScraperMode: "Profile details no email ($4 per 1k)", urls }, retour("decideurs"), PLAFONDS.decideurs), { profils: urls.length });
       lances.push(`decideurs (${urls.length})`);
+    }
+  }
+
+  // À la demande seulement : décideurs marketing des comptes A qui n'en ont aucun dans la base.
+  if (forcer === "manquants") {
+    const companies = (await requete<{ url: string }>(
+      `select s.url_linkedin as url from score_comptes s
+       where not s.exclu and s.palier = 'A' and s.url_linkedin like 'https://www.linkedin.com/company/%'
+         and not exists (select 1 from contacts ct where ct.compte_id = s.compte_id
+           and ct.poste ~* '(cmo|chief marketing|directeur.*marketing|directrice.*marketing|marketing director|director of marketing|head of marketing|vp marketing|directeur.*communication|directrice.*communication|chief brand|chief growth|head of growth)')`)).map((l) => l.url);
+    if (companies.length) {
+      const entree = { profileScraperMode: "Short ($4 per 1k)", companies, functionIds: ["15", "16"], seniorityLevelIds: ["220", "300", "310"], companyBatchMode: "all_at_once", maxItems: 200 };
+      await noter("manquants", await lancer(ACTEURS.manquants, entree, retour("manquants"), PLAFONDS.manquants), { comptes: companies.length });
+      lances.push(`manquants (${companies.length} comptes)`);
     }
   }
 

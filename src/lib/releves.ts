@@ -4,7 +4,7 @@
 import { requete } from "@/lib/db";
 import { normaliser } from "@/lib/visites";
 
-type Compte = { id: number; nom: string; url: string | null; linkedin_id: string | null; effectif: number | null };
+type Compte = { id: number; nom: string; url: string | null; linkedin_id: string | null; effectif: number | null; exclu: boolean };
 type Contact = { id: number; compte_id: number | null; url: string | null; linkedin_id: string | null; prenom: string | null; nom: string | null; poste: string | null; suivi: Record<string, unknown> | null };
 type Position = { title?: string; position?: string; companyName?: string; companyId?: string; companyLinkedinUrl?: string; current?: boolean; startedOn?: { month?: number | string; year?: number }; startDate?: { month?: number | string; year?: number }; company?: { industry?: string } };
 type Signal = { type: string; compte_id: number; contact_id: number | null; le: string; ref: string; detail: Record<string, unknown>; origine: "A" | "C" };
@@ -38,13 +38,18 @@ const recent = (d: Date | null, jours = 183) => Boolean(d && Date.now() - d.getT
 const titreDe = (p: Position) => p.title ?? p.position ?? "";
 
 export async function referentiel() {
-  const comptes = await requete<Compte>(`select id::int, nom, url_linkedin as url, linkedin_id, effectif from comptes where not exclu`);
+  // Les comptes exclus restent dans le référentiel : une personne qui y travaille doit être reconnue, puis ignorée,
+  // sans quoi son employeur entrerait dans la base comme une nouvelle entreprise.
+  const comptes = await requete<Compte>(`select id::int, nom, url_linkedin as url, linkedin_id, effectif, exclu from comptes`);
+  const [p] = await requete<{ valeur: string[] | null }>(`select valeur from parametres where cle = 'exclusions_noms'`);
+  const exclusions = (p?.valeur ?? []).map((n) => normaliser(n));
   const contacts = await requete<Contact>(`select id::int, compte_id::int, url_linkedin as url, linkedin_id, prenom, nom, poste, suivi from contacts`);
   const parUrl = new Map(comptes.filter((c) => c.url).map((c) => [urlNormale(c.url)!, c]));
   const parId = new Map(comptes.filter((c) => c.linkedin_id).map((c) => [c.linkedin_id!, c]));
   const contactParUrl = new Map(contacts.filter((c) => c.url).map((c) => [urlNormale(c.url)!, c]));
   const contactParId = new Map(contacts.filter((c) => c.linkedin_id).map((c) => [c.linkedin_id!, c]));
-  return { comptes, contacts, parUrl, parId, contactParUrl, contactParId };
+  const estExclu = (nom?: string | null) => exclusions.some((e) => e && normaliser(nom || "").includes(e));
+  return { comptes, contacts, parUrl, parId, contactParUrl, contactParId, estExclu };
 }
 type Referentiel = Awaited<ReturnType<typeof referentiel>>;
 
@@ -95,23 +100,25 @@ export async function ecrireSignaux(signaux: Signal[]): Promise<number> {
   return r.length;
 }
 
-/** Recherche hebdomadaire des décideurs marketing qui ont changé de poste. Un compte absent de la base y entre (réservoir A). */
-export async function interpreterPostes(items: Record<string, unknown>[], ref: Referentiel): Promise<number> {
+/** Recherche hebdomadaire des décideurs marketing qui ont changé de poste. Un compte absent de la base y entre (réservoir A).
+ *  Avec `manquants`, recherche unique des décideurs des comptes qui n'en ont pas : ni date exigée ni compte ajouté. */
+export async function interpreterPostes(items: Record<string, unknown>[], ref: Referentiel, manquants = false): Promise<number> {
   const signaux: Signal[] = [];
   for (const it of items) {
     const id = String(it.id ?? "");
     const positions = ((it.currentPositions as Position[]) || []).filter((p) => p.current !== false);
     for (const p of positions) {
       const debut = debutDe(p);
-      if (!estDecideur(titreDe(p)) || !recent(debut)) continue;
+      if (!estDecideur(titreDe(p)) || (!manquants && !recent(debut))) continue;
       let compte = compteDe(p, ref);
-      if (!compte && !SECTEURS_VISES.test(p.company?.industry || "")) continue;
+      if (compte?.exclu || ref.estExclu(p.companyName)) continue;
+      if (!compte && (manquants || !SECTEURS_VISES.test(p.company?.industry || ""))) continue;
       if (!compte) {
         const [c] = await requete<Compte>(
           `insert into comptes (nom, url_linkedin, linkedin_id, activite, pays, b2b, origine)
            values ($1, $2, $3, $4, 'FR', true, 'A')
            on conflict (url_linkedin) do update set linkedin_id = excluded.linkedin_id
-           returning id::int, nom, url_linkedin as url, linkedin_id, effectif`,
+           returning id::int, nom, url_linkedin as url, linkedin_id, effectif, exclu`,
           [p.companyName ?? "Entreprise sans nom", p.companyLinkedinUrl ?? `linkedin-id:${p.companyId}`, p.companyId ?? null,
            p.company?.industry ? `${p.company.industry} (prise de poste)` : "Découvert par la surveillance des prises de poste"]);
         compte = c;
@@ -131,6 +138,12 @@ export async function interpreterPostes(items: Record<string, unknown>[], ref: R
       const nom = it.lastName as string | undefined;
       const existant = ref.contactParId.get(id) ?? contactParNom(ref, compte.id, prenom, nom);
       const contactId = existant?.id ?? await creerContact(compte.id, { url: it.linkedinUrl as string, linkedin_id: id, prenom, nom, poste: titreDe(p) }, "A", ref);
+      if (manquants) {
+        // Même référence que l'import de la base : le signal d'adéquation n'est jamais compté deux fois.
+        signaux.push({ type: "decideur_identifie", compte_id: compte.id, contact_id: null, le: new Date().toISOString(),
+          ref: `tam:${compte.url}:decideur_identifie`, detail: { nom: `${prenom ?? ""} ${nom ?? ""}`.trim(), poste: titreDe(p) }, origine: "A" });
+        if (!recent(debut)) continue;
+      }
       signaux.push({
         type: "nouveau_decideur_marketing", compte_id: compte.id, contact_id: contactId, le: debut!.toISOString(),
         ref: `poste:${id}:${compte.id}:${debut!.toISOString().slice(0, 7)}`,
@@ -150,6 +163,7 @@ export async function interpreterDecideurs(items: Record<string, unknown>[], ref
     const requeteUrl = (it.originalQuery as { url?: string } | undefined)?.url ?? (it.linkedinUrl as string);
     const contact = ref.contactParUrl.get(urlNormale(requeteUrl)!);
     if (!contact || !contact.compte_id) continue;
+    if (ref.comptes.find((c) => c.id === contact.compte_id)?.exclu) continue;
     const positions = (it.currentPosition as Position[]) || [];
     if (!positions.length) continue;
     const ancien = ref.comptes.find((c) => c.id === contact.compte_id);
@@ -181,7 +195,7 @@ export async function interpreterDecideurs(items: Record<string, unknown>[], ref
       signaux.push({ type: "depart_decideur_marketing", compte_id: contact.compte_id, contact_id: null, le,
         ref: `depart:${contact.id}:${contact.compte_id}`, detail: { nom: `${contact.prenom ?? ""} ${contact.nom ?? ""}`.trim(), vers: principale.companyName ?? null }, origine: "A" });
       const nouveau = compteDe(principale, ref);
-      if (nouveau && estDecideur(titreDe(principale)) && recent(debut)) {
+      if (nouveau && !nouveau.exclu && estDecideur(titreDe(principale)) && recent(debut)) {
         signaux.push({ type: "nouveau_decideur_marketing", compte_id: nouveau.id, contact_id: contact.id, le: debut!.toISOString(),
           ref: `poste:${contact.id}:${nouveau.id}:${debut!.toISOString().slice(0, 7)}`, detail: { poste: titreDe(principale), entreprise: principale.companyName, venant_de: ancien?.nom ?? null }, origine: "A" });
       }
@@ -206,7 +220,7 @@ export async function interpreterEngageurs(items: Record<string, unknown>[], pos
     const positions = (actor.currentPosition as Position[]) || [];
     const p = positions.find((x) => compteDe(x, ref)) ?? null;
     const compte = p ? compteDe(p, ref) : null;
-    if (!compte || !p) continue;
+    if (!compte || !p || compte.exclu) continue;
     const idPersonne = String(actor.id ?? "");
     const url = actor.publicIdentifier ? `https://www.linkedin.com/in/${actor.publicIdentifier}` : (actor.linkedinUrl as string | undefined);
     const existant = ref.contactParId.get(idPersonne) ?? (url ? ref.contactParUrl.get(urlNormale(url)!) : undefined)

@@ -58,6 +58,7 @@ async function finDeRun(charge: Record<string, unknown>) {
     const ref = await referentiel();
     let nouveaux = 0;
     if (releve.nature === "postes") nouveaux = await interpreterPostes(items, ref);
+    else if (releve.nature === "manquants") nouveaux = await interpreterPostes(items, ref, true);
     else if (releve.nature === "decideurs") nouveaux = await interpreterDecideurs(items, ref);
     else if (releve.nature === "engageurs") {
       const d = releve.detail as { post: { url: string; nature: string }; type: "reactions" | "commentaires" };
