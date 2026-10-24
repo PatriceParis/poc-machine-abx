@@ -1,6 +1,6 @@
 import { Navigation } from "@/components/navigation";
 import { baseConfiguree, requete } from "@/lib/db";
-import { fDateHeure, fJour } from "@/lib/format";
+import { fDateHeure } from "@/lib/format";
 import { SOURCES } from "@/lib/donnees";
 
 export const dynamic = "force-dynamic";
@@ -39,13 +39,6 @@ export default async function MachineLayout({ children }: { children: React.Reac
                 · {e.actives.length}/{SOURCES.length} sources actives{e.actives.length ? ` : ${e.actives.join(", ")}` : ""}
               </span>
             )}
-          </div>
-          <div className="flex items-center justify-between gap-4 rounded-xl bg-surface border border-bord px-4 py-3">
-            <div>
-              <p className="font-semibold">Bonjour</p>
-              <p className="text-xs text-texte-2">Hirondo · Machine à leads ABX</p>
-            </div>
-            <span className="text-xs text-texte-2 px-3 py-1.5 rounded-full bg-surface-2 border border-bord first-letter:uppercase">{fJour(new Date())}</span>
           </div>
         </header>
         <main className="mt-5">{children}</main>

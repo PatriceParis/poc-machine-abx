@@ -24,8 +24,8 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
           <h1 className="font-titre text-4xl">{c.nom}</h1>
           <p className="text-sm text-texte-2 mt-1">{[c.activite, c.tranche_effectif && `${c.tranche_effectif} salariés`].filter(Boolean).join(" · ")}</p>
           <div className="flex flex-wrap gap-3 mt-2 text-xs">
-            {c.site && <a href={c.site} target="_blank" rel="noopener" className="text-or-fort inline-flex items-center gap-1 hover:underline">Site <ExternalLink className="w-3 h-3" /></a>}
-            {c.url_linkedin && <a href={c.url_linkedin} target="_blank" rel="noopener" className="text-or-fort inline-flex items-center gap-1 hover:underline">Page LinkedIn <ExternalLink className="w-3 h-3" /></a>}
+            {c.site && <a href={c.site} target="_blank" rel="noopener" className="text-accent-fort inline-flex items-center gap-1 hover:underline">Site <ExternalLink className="w-3 h-3" /></a>}
+            {c.url_linkedin && <a href={c.url_linkedin} target="_blank" rel="noopener" className="text-accent-fort inline-flex items-center gap-1 hover:underline">Page LinkedIn <ExternalLink className="w-3 h-3" /></a>}
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -37,9 +37,9 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
 
       <div className="grid sm:grid-cols-4 gap-3">
         {[
-          { t: "Score", v: c.score },
-          { t: "Adéquation", v: c.adequation + c.malus },
-          { t: "Chaleur", v: c.chaleur },
+          { t: "Score sur 100", v: c.score },
+          { t: "Adéquation sur 40", v: c.adequation },
+          { t: "Chaleur sur 60", v: c.chaleur },
           { t: "Destinataire si transmis", v: c.exclu ? "Exclu" : c.destinataire ?? "à attribuer" },
         ].map((x) => (
           <div key={x.t} className="rounded-xl border border-bord bg-surface px-4 py-3">
@@ -49,7 +49,7 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
         ))}
       </div>
       {c.exclu && <p className="text-sm text-alerte">Compte exclu : {c.motif_exclusion}</p>}
-      <BarreScore adequation={c.adequation} chaleur={c.chaleur} malus={c.malus} />
+      <BarreScore adequation={c.adequation} chaleur={c.chaleur} />
 
       <div className="grid lg:grid-cols-[1.4fr_1fr] gap-5">
         <Carte>
@@ -57,7 +57,7 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
           {chaleur.length ? (
             <ul className="p-5 flex flex-col gap-3">
               {chaleur.map((s) => (
-                <li key={s.id} className={clsx("flex items-start justify-between gap-3 border-l-2 pl-3", s.actif ? "border-or" : "border-bord opacity-60")}>
+                <li key={s.id} className={clsx("flex items-start justify-between gap-3 border-l-2 pl-3", s.actif ? "border-accent" : "border-bord opacity-60")}>
                   <div>
                     <p className="text-sm">{s.libelle}</p>
                     <p className="text-xs text-texte-3">{fDate(s.survenu_le)} · {s.source}{s.contact ? ` · ${s.contact}` : ""}{s.actif ? "" : " · expiré"}</p>
@@ -103,7 +103,7 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
                     </td>
                     <td className="px-3 py-2.5 text-texte-2">{estDecideur(ct.poste) ? "Décideur marketing" : FONCTIONS[ct.fonction] ?? ct.fonction}</td>
                     <td className="px-3 py-2.5 text-texte-2">{ct.email ? "Oui" : "Non"}</td>
-                    <td className="px-5 py-2.5">{ct.url_linkedin && <a href={ct.url_linkedin} target="_blank" rel="noopener" className="text-or-fort hover:underline inline-flex items-center gap-1">Profil <ExternalLink className="w-3 h-3" /></a>}</td>
+                    <td className="px-5 py-2.5">{ct.url_linkedin && <a href={ct.url_linkedin} target="_blank" rel="noopener" className="text-accent-fort hover:underline inline-flex items-center gap-1">Profil <ExternalLink className="w-3 h-3" /></a>}</td>
                   </tr>
                 ))}
               </tbody>

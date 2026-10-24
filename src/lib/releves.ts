@@ -25,7 +25,9 @@ export function fonctionDuPoste(poste?: string | null): string {
   return "autre";
 }
 
-export const urlNormale = (u?: string | null) => (u ? u.toLowerCase().split("?")[0].replace(/\/+$/, "").replace("://linkedin.com", "://www.linkedin.com") : null);
+// « https://fr.linkedin.com/company/almapay?trk=… » et « https://www.linkedin.com/company/almapay/ » désignent la même page.
+export const urlNormale = (u?: string | null) =>
+  u ? u.toLowerCase().split("?")[0].replace(/\/+$/, "").replace(/^https?:\/\/([a-z]{2,3}\.)?linkedin\.com/, "https://www.linkedin.com") : null;
 
 const MOIS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 export function debutDe(p: Position): Date | null {
@@ -207,6 +209,21 @@ export async function interpreterDecideurs(items: Record<string, unknown>[], ref
       `update contacts c set suivi = v.s::jsonb, suivi_le = now(), compte_id = coalesce(v.co, c.compte_id), poste = coalesce(v.p, c.poste), mis_a_jour_le = now()
        from unnest($1::bigint[], $2::text[], $3::bigint[], $4::text[]) as v(id, s, co, p) where c.id = v.id`,
       [suivis.map((s) => s.id), suivis.map((s) => s.suivi), suivis.map((s) => s.compte), suivis.map((s) => s.poste)]);
+  }
+  return ecrireSignaux(signaux);
+}
+
+/** Offres d'emploi LinkedIn de la semaine (curious_coder/linkedin-jobs-scraper) : une offre d'un compte de la base,
+ *  reconnu par l'adresse de sa page LinkedIn puis par son nom, fait un signal de recrutement. */
+export async function interpreterOffres(items: Record<string, unknown>[], ref: Referentiel): Promise<number> {
+  const signaux: Signal[] = [];
+  for (const it of items) {
+    const p: Position = { companyName: it.companyName as string, companyLinkedinUrl: it.companyLinkedinUrl as string };
+    const compte = compteDe(p, ref);
+    if (!compte || compte.exclu) continue;
+    const posted = typeof it.postedAt === "string" && /^\d{4}-\d{2}-\d{2}/.test(it.postedAt) ? new Date(it.postedAt as string) : new Date();
+    signaux.push({ type: "recrutement_marketing_ops", compte_id: compte.id, contact_id: null, le: posted.toISOString(),
+      ref: `offre:${String(it.id ?? it.link)}`, detail: { poste: it.title, lieu: it.location, lien: it.link, entreprise: it.companyName }, origine: "A" });
   }
   return ecrireSignaux(signaux);
 }

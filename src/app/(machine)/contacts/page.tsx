@@ -64,13 +64,13 @@ export default async function Contacts({ searchParams }: { searchParams: Promise
                       <p className="text-xs text-texte-3 max-w-[38ch] truncate" title={ct.poste ?? ""}>{ct.poste}</p>
                     </td>
                     <td className="px-3 py-2.5">
-                      <span className="flex items-center gap-2"><Palier palier={ct.palier} /><Link href={`/comptes/${ct.compte_id}`} className="hover:text-or-fort">{ct.compte}</Link></span>
+                      <span className="flex items-center gap-2"><Palier palier={ct.palier} /><Link href={`/comptes/${ct.compte_id}`} className="hover:text-accent-fort">{ct.compte}</Link></span>
                     </td>
                     <td className="px-3 py-2.5 text-texte-2">{estDecideur(ct.poste) ? "Décideur marketing" : FONCTIONS[ct.fonction] ?? ct.fonction}</td>
                     <td className="px-3 py-2.5 text-right chiffres">{ct.score}</td>
                     <td className="px-3 py-2.5"><Engagement engagement={ct.engagement} /></td>
                     <td className="px-3 py-2.5 text-texte-2">{ct.email ? "Oui" : "Non"}</td>
-                    <td className="px-5 py-2.5">{ct.url_linkedin && <a href={ct.url_linkedin} target="_blank" rel="noopener" className="text-or-fort hover:underline inline-flex items-center gap-1">Profil <ExternalLink className="w-3 h-3" /></a>}</td>
+                    <td className="px-5 py-2.5">{ct.url_linkedin && <a href={ct.url_linkedin} target="_blank" rel="noopener" className="text-accent-fort hover:underline inline-flex items-center gap-1">Profil <ExternalLink className="w-3 h-3" /></a>}</td>
                   </tr>
                 ))}
               </tbody>

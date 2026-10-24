@@ -47,7 +47,7 @@ export function LoginForm() {
         />
       </div>
       {error && <p className="text-sm text-alerte">{error}</p>}
-      <button type="submit" disabled={pending || !password} className="w-full py-2 rounded-md bg-or text-fond text-sm font-semibold hover:bg-or-fort disabled:opacity-60">
+      <button type="submit" disabled={pending || !password} className="w-full py-2 rounded-md bg-accent text-white text-sm font-semibold hover:bg-accent-fort disabled:opacity-60">
         {pending ? "Vérification…" : "Ouvrir le tableau de bord"}
       </button>
     </form>

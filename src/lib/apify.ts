@@ -8,6 +8,7 @@ export const ACTEURS = {
   reactions: "harvestapi~linkedin-post-reactions",
   commentaires: "harvestapi~linkedin-post-comments",
   manquants: "harvestapi~linkedin-company-employees",
+  offres: "curious_coder~linkedin-jobs-scraper",
 } as const;
 
 function jeton() {

@@ -41,7 +41,7 @@ export default async function Signaux({ searchParams }: { searchParams: Promise<
                 <span className="text-xs text-texte-3 chiffres pt-0.5">{fDate(s.survenu_le)}</span>
                 <div className="flex flex-col gap-1">
                   <p className="flex flex-wrap items-center gap-2">
-                    <Link href={`/comptes/${s.compte_id}`} className="font-medium hover:text-or-fort">{s.compte}</Link>
+                    <Link href={`/comptes/${s.compte_id}`} className="font-medium hover:text-accent-fort">{s.compte}</Link>
                     <Palier palier={s.palier} />
                     <span className="chiffres text-xs text-texte-3">score {s.score}</span>
                   </p>

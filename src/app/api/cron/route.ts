@@ -10,7 +10,7 @@ import { ACTEURS, lancer } from "@/lib/apify";
 // Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|engageurs lance à la demande.
 export const maxDuration = 60;
 
-const PLAFONDS = { postes: 0.5, decideurs: 2.5, engageurs: 1, manquants: 1.5 };
+const PLAFONDS = { postes: 0.5, decideurs: 2.5, engageurs: 1, manquants: 1.5, offres: 0.6 };
 
 async function dernier(nature: string): Promise<Date | null> {
   const [l] = await requete<{ le: string | null }>(`select max(lance_le) as le from releves where nature = $1 and statut <> 'échec'`, [nature]);
@@ -51,6 +51,14 @@ export async function GET(request: Request) {
       await noter("decideurs", await lancer(ACTEURS.decideurs, { profileScraperMode: "Profile details no email ($4 per 1k)", urls }, retour("decideurs"), PLAFONDS.decideurs), { profils: urls.length });
       lances.push(`decideurs (${urls.length})`);
     }
+  }
+
+  // Chaque semaine : offres d'emploi LinkedIn en marketing ops, CRM, ABM publiées en France depuis 7 jours.
+  // Préféré à ReachMCP : sans compte relié, et l'offre porte l'adresse de la page de l'entreprise, la clé du TAM.
+  if (forcer === "offres" || (!forcer && depuis(await dernier("offres")) >= 6.5)) {
+    const entree = { keywords: params.get("offres_mots_cles"), location: "France", datePosted: "pastWeek", scrapeCompany: false, limitPerSource: 500 };
+    await noter("offres", await lancer(ACTEURS.offres, entree, retour("offres"), PLAFONDS.offres), { entree });
+    lances.push("offres");
   }
 
   // À la demande seulement : décideurs marketing des comptes A qui n'en ont aucun dans la base.

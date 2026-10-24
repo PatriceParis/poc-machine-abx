@@ -14,10 +14,10 @@ const ACTIONS_CASE: Record<string, Record<string, string>> = {
 
 function Tuile({ titre, valeur, aide, accent }: { titre: string; valeur: string; aide: string; accent?: boolean }) {
   return (
-    <div className={clsx("rounded-xl border px-4 py-3.5 flex flex-col gap-1", accent ? "bg-or text-fond border-or" : "bg-surface border-bord")}>
-      <span className={clsx("text-xs", accent ? "text-fond/80 font-medium" : "text-texte-2")}>{titre}</span>
+    <div className={clsx("rounded-xl border px-4 py-3.5 flex flex-col gap-1", accent ? "bg-accent text-white border-accent" : "bg-surface border-bord")}>
+      <span className={clsx("text-xs", accent ? "text-white/85 font-medium" : "text-texte-2")}>{titre}</span>
       <span className={clsx("chiffres text-3xl", accent && "font-semibold")}>{valeur}</span>
-      <span className={clsx("text-xs", accent ? "text-fond/75" : "text-texte-3")}>{aide}</span>
+      <span className={clsx("text-xs", accent ? "text-white/75" : "text-texte-3")}>{aide}</span>
     </div>
   );
 }
@@ -36,7 +36,7 @@ export default async function Cockpit() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="font-titre text-4xl">Cockpit · {fNombre(n("comptes"))} comptes suivis</h1>
-        <Link href="/comptes" className="text-sm text-or-fort hover:underline underline-offset-4">Tous les comptes</Link>
+        <Link href="/comptes" className="text-sm text-accent-fort hover:underline underline-offset-4">Tous les comptes</Link>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -69,8 +69,8 @@ export default async function Cockpit() {
                   const transmise = ACTIONS_CASE[p][e] === "Transmettre";
                   return (
                     <Link key={e} href={`/comptes?palier=${p}&engagement=${e}`}
-                      className={clsx("rounded-lg border px-4 py-3 flex flex-col gap-1 hover:border-or/70",
-                        transmise ? "bg-or-pale border-or/50" : v > 0 && p !== "C" ? "bg-surface-2 border-or/25" : "bg-surface-2 border-bord")}>
+                      className={clsx("rounded-lg border px-4 py-3 flex flex-col gap-1 hover:border-accent/70",
+                        transmise ? "bg-accent-pale border-accent/50" : v > 0 && p !== "C" ? "bg-surface-2 border-accent/25" : "bg-surface-2 border-bord")}>
                       <span className="chiffres text-2xl">{fNombre(v)}</span>
                       <span className="text-xs text-texte-2">{ACTIONS_CASE[p][e]}</span>
                     </Link>
@@ -108,8 +108,8 @@ export default async function Cockpit() {
               <p className="etiquette text-texte-2">Moteur de score</p>
               {[
                 { nom: "Adéquation", info: "taille, secteur, décideur", couleur: "bg-froid", v: null },
-                { nom: "Déclencheurs", info: "30 jours", couleur: "bg-or", v: declencheurs30 },
-                { nom: "Intentions", info: "30 jours", couleur: "bg-chaud", v: intentions30 },
+                { nom: "Déclencheurs", info: "30 jours", couleur: "bg-tiede", v: declencheurs30 },
+                { nom: "Intentions", info: "30 jours", couleur: "bg-accent", v: intentions30 },
               ].map((f) => (
                 <div key={f.nom} className="flex flex-col gap-1.5">
                   <div className="flex justify-between text-sm"><span>{f.nom}</span><span className="chiffres text-texte-2">{f.v == null ? f.info : fNombre(f.v)}</span></div>
@@ -118,7 +118,7 @@ export default async function Cockpit() {
                   </div>
                 </div>
               ))}
-              <p className="text-xs text-texte-2">Adéquation + déclencheurs + intentions, moins les malus. Grille modifiable dans <Link href="/grille" className="text-or-fort underline underline-offset-4">Grille</Link>.</p>
+              <p className="text-xs text-texte-2">Score sur 100 : adéquation sur 40 (malus compris) plus chaleur sur 60 (déclencheurs et intentions actifs). Grille modifiable dans <Link href="/grille" className="text-accent-fort underline underline-offset-4">Grille</Link>.</p>
             </div>
             <p className="text-xs text-texte-3">Visites du site : {fNombre(n("visites"))} reçues, {fNombre(n("visites_identifiees"))} rattachées à un compte.</p>
           </div>
@@ -160,12 +160,12 @@ export default async function Cockpit() {
                 {top.map((l) => (
                   <tr key={l.compte_id} className="border-b border-bord/60 hover:bg-surface-2">
                     <td className="px-5 py-2.5">
-                      <Link href={`/comptes/${l.compte_id}`} className="font-medium hover:text-or-fort">{l.nom}</Link>
+                      <Link href={`/comptes/${l.compte_id}`} className="font-medium hover:text-accent-fort">{l.nom}</Link>
                       <p className="text-xs text-texte-3">{[l.activite, l.tranche_effectif && `${l.tranche_effectif} salariés`].filter(Boolean).join(" · ")}</p>
                     </td>
                     <td className="px-3 py-2.5"><span className="flex items-center gap-2"><Palier palier={l.palier} /><Engagement engagement={l.engagement} /></span></td>
                     <td className="px-3 py-2.5"><Action action={l.action} /></td>
-                    <td className="px-3 py-2.5"><BarreScore adequation={l.adequation} chaleur={l.chaleur} malus={l.malus} /></td>
+                    <td className="px-3 py-2.5"><BarreScore adequation={l.adequation} chaleur={l.chaleur} /></td>
                     <td className="px-3 py-2.5 text-right chiffres">{l.nb_signaux}</td>
                     <td className="px-3 py-2.5 text-right chiffres">{l.contacts}</td>
                     <td className="px-5 py-2.5 text-texte-2 whitespace-nowrap">{l.dernier_signal ? fDate(l.dernier_signal) : "Aucun"}</td>
@@ -181,7 +181,7 @@ export default async function Cockpit() {
         <Carte>
           <TitreSection titre="Signaux des 30 derniers jours" aide="Ce qui fait monter la chaleur. L'adéquation, fixe, n'y figure pas." />
           <div className="p-5 flex flex-col gap-3">
-            {[{ f: "Déclencheurs", v: declencheurs30, c: "bg-or" }, { f: "Intentions", v: intentions30, c: "bg-chaud" }].map((r) => (
+            {[{ f: "Déclencheurs", v: declencheurs30, c: "bg-tiede" }, { f: "Intentions", v: intentions30, c: "bg-accent" }].map((r) => (
               <div key={r.f} className="grid grid-cols-[110px_1fr_40px] items-center gap-3">
                 <span className="text-xs text-texte-2">{r.f}</span>
                 <div className="h-2 rounded-full bg-surface-3 overflow-hidden"><span className={clsx("block h-full", r.c)} style={{ width: `${(r.v / maxFamille) * 100}%` }} /></div>

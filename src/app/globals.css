@@ -1,27 +1,27 @@
 @import "tailwindcss";
 
-/* Un seul thème, sombre, comme la salle de contrôle qu'il imite : fond et couleurs posés explicitement. */
+/* Thème sombre neutre : noir, gris, blanc, un seul bleu pour l'accent et l'état « chaud ». */
 :root {
-  --fond: #0b1017;
-  --surface: #111923;
-  --surface-2: #17212d;
-  --surface-3: #1d2937;
-  --bord: #233142;
-  --bord-fort: #2f4054;
-  --texte: #e7ecf2;
-  --texte-2: #9aa8b8;
-  --texte-3: #6b7a8c;
-  --or: #c9a45e;
-  --or-fort: #e2bf78;
-  --or-pale: rgba(201, 164, 94, 0.14);
-  --chaud: #e08a5e;
-  --chaud-pale: rgba(224, 138, 94, 0.15);
-  --tiede: #c9a45e;
-  --froid: #7b97b4;
-  --froid-pale: rgba(123, 151, 180, 0.14);
-  --ok: #86b393;
-  --alerte: #d0705f;
-  --alerte-pale: rgba(208, 112, 95, 0.15);
+  --fond: #0a0b0d;
+  --surface: #111317;
+  --surface-2: #171a1f;
+  --surface-3: #1f232a;
+  --bord: #262a31;
+  --bord-fort: #343943;
+  --texte: #f2f4f7;
+  --texte-2: #a1a8b3;
+  --texte-3: #6c7380;
+  --accent: #3b82f6;
+  --accent-fort: #6aa3ff;
+  --accent-pale: rgba(59, 130, 246, 0.13);
+  --chaud: #3b82f6;
+  --chaud-pale: rgba(59, 130, 246, 0.16);
+  --tiede: #93b4e6;
+  --froid: #7d8592;
+  --froid-pale: rgba(125, 133, 146, 0.14);
+  --ok: #4ade80;
+  --alerte: #ef6b6b;
+  --alerte-pale: rgba(239, 107, 107, 0.14);
   color-scheme: dark;
 }
 
@@ -35,11 +35,12 @@
   --color-texte: var(--texte);
   --color-texte-2: var(--texte-2);
   --color-texte-3: var(--texte-3);
-  --color-or: var(--or);
-  --color-or-fort: var(--or-fort);
-  --color-or-pale: var(--or-pale);
+  --color-accent: var(--accent);
+  --color-accent-fort: var(--accent-fort);
+  --color-accent-pale: var(--accent-pale);
   --color-chaud: var(--chaud);
   --color-chaud-pale: var(--chaud-pale);
+  --color-tiede: var(--tiede);
   --color-froid: var(--froid);
   --color-froid-pale: var(--froid-pale);
   --color-ok: var(--ok);
@@ -47,7 +48,7 @@
   --color-alerte-pale: var(--alerte-pale);
   --font-sans: var(--police-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--police-mono), ui-monospace, SFMono-Regular, Consolas, monospace;
-  --font-titre: var(--police-titre), Georgia, serif;
+  --font-titre: var(--police-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 html,
@@ -68,6 +69,11 @@ h3 {
   text-wrap: balance;
 }
 
+h1 {
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
 .chiffres {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
@@ -84,7 +90,7 @@ a:focus-visible,
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--or);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 

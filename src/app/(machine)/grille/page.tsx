@@ -19,6 +19,8 @@ const SOURCE: Record<string, string> = {
 };
 
 const SEUILS = [
+  { cle: "plafond_adequation", nom: "Adéquation, sur" },
+  { cle: "plafond_chaleur", nom: "Chaleur, sur" },
   { cle: "seuil_adequation_a", nom: "Palier A" },
   { cle: "seuil_adequation_b", nom: "Palier B" },
   { cle: "seuil_chaud", nom: "Chaud" },
@@ -37,7 +39,7 @@ export default async function Grille() {
         <h1 className="font-titre text-4xl">Grille</h1>
         <span className="text-xs text-texte-3">Lecture seule · modifiée dans la configuration de la machine</span>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         {SEUILS.map((s) => (
           <div key={s.cle} className="rounded-xl border border-bord bg-surface px-4 py-3">
             <p className="text-xs text-texte-2">{s.nom}</p>

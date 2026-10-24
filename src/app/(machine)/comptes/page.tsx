@@ -41,7 +41,7 @@ export default async function Comptes({ searchParams }: { searchParams: Promise<
           {activites.map((a) => <option key={a.activite} value={a.activite}>{a.activite} ({a.n})</option>)}
         </select>
         <button type="submit" className="px-3 py-1.5 rounded-lg bg-surface-3 text-sm">Rechercher</button>
-        {(filtres.palier || filtres.engagement || filtres.activite || filtres.texte) && <Link href="/comptes" className="text-xs text-or-fort hover:underline">Effacer les filtres</Link>}
+        {(filtres.palier || filtres.engagement || filtres.activite || filtres.texte) && <Link href="/comptes" className="text-xs text-accent-fort hover:underline">Effacer les filtres</Link>}
       </Filtres>
       <Carte>
         <div className="overflow-x-auto">
@@ -62,11 +62,11 @@ export default async function Comptes({ searchParams }: { searchParams: Promise<
               <tbody>
                 {lignes.map((l) => (
                   <tr key={l.compte_id} className="border-b border-bord/60 hover:bg-surface-2">
-                    <td className="px-5 py-2.5"><Link href={`/comptes/${l.compte_id}`} className="font-medium hover:text-or-fort">{l.nom}</Link></td>
+                    <td className="px-5 py-2.5"><Link href={`/comptes/${l.compte_id}`} className="font-medium hover:text-accent-fort">{l.nom}</Link></td>
                     <td className="px-3 py-2.5 text-texte-2">{l.activite ?? "n.c."}</td>
                     <td className="px-3 py-2.5 text-texte-2 chiffres whitespace-nowrap">{l.tranche_effectif ?? "n.c."}</td>
                     <td className="px-3 py-2.5"><span className="flex items-center gap-2"><Palier palier={l.palier} /><Engagement engagement={l.engagement} /></span></td>
-                    <td className="px-3 py-2.5"><BarreScore adequation={l.adequation} chaleur={l.chaleur} malus={l.malus} /></td>
+                    <td className="px-3 py-2.5"><BarreScore adequation={l.adequation} chaleur={l.chaleur} /></td>
                     <td className="px-3 py-2.5"><Action action={l.action} /></td>
                     <td className="px-3 py-2.5 text-right chiffres">{l.nb_signaux}</td>
                     <td className="px-5 py-2.5 text-texte-2 whitespace-nowrap">{l.dernier_signal ? fDate(l.dernier_signal) : "Aucun"}</td>

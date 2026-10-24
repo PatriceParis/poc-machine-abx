@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requete } from "@/lib/db";
 import { safeEqual } from "@/lib/auth";
 import { lireJeu } from "@/lib/apify";
-import { interpreterDecideurs, interpreterEngageurs, interpreterPostes, referentiel } from "@/lib/releves";
+import { interpreterDecideurs, interpreterEngageurs, interpreterOffres, interpreterPostes, referentiel } from "@/lib/releves";
 
 // Réception des webhooks (Brevo, ReachMCP, formulaire du test, LinkedIn, Apify). Secret obligatoire,
 // dans l'en-tête x-cle ou le paramètre ?cle=. Tout est d'abord rangé tel quel dans evenements_bruts.
@@ -59,6 +59,7 @@ async function finDeRun(charge: Record<string, unknown>) {
     let nouveaux = 0;
     if (releve.nature === "postes") nouveaux = await interpreterPostes(items, ref);
     else if (releve.nature === "manquants") nouveaux = await interpreterPostes(items, ref, true);
+    else if (releve.nature === "offres") nouveaux = await interpreterOffres(items, ref);
     else if (releve.nature === "decideurs") nouveaux = await interpreterDecideurs(items, ref);
     else if (releve.nature === "engageurs") {
       const d = releve.detail as { post: { url: string; nature: string }; type: "reactions" | "commentaires" };
