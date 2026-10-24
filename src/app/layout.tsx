@@ -6,7 +6,7 @@ const sans = Geist({ subsets: ["latin"], weight: ["400", "500", "600"], variable
 const mono = Geist_Mono({ subsets: ["latin"], weight: ["400", "500"], variable: "--police-mono" });
 
 export const metadata: Metadata = {
-  title: "Machine à leads · Hirondo",
+  title: "Cockpit Hirondo ABX",
   description: "Comptes, signaux et contacts de la machine ABX Hirondo.",
   robots: { index: false, follow: false },
 };

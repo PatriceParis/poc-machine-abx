@@ -4,7 +4,7 @@ import { sequences, type Etape } from "@/lib/donnees";
 import { fNombre } from "@/lib/format";
 import { Carte, TitreSection, Vide } from "@/components/ui";
 
-export const metadata = { title: "Workflow · Machine à leads" };
+export const metadata = { title: "Workflow · Cockpit Hirondo ABX" };
 
 const ACTIONS: Record<string, typeof Eye> = { visite_profil: Eye, invitation: UserPlus, message: MessageSquare, email: Mail, interaction: ThumbsUp };
 const STATUTS: Record<string, string> = { brouillon: "Brouillon", validee: "Validée", active: "Active", en_pause: "En pause" };

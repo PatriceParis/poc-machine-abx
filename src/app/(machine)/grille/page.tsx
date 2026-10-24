@@ -2,7 +2,7 @@ import { grille } from "@/lib/donnees";
 import { FAMILLES, fNombre } from "@/lib/format";
 import { Carte, Famille } from "@/components/ui";
 
-export const metadata = { title: "Grille · Machine à leads" };
+export const metadata = { title: "Grille · Cockpit Hirondo ABX" };
 
 // D'où vient chaque signal, pour la lecture de la grille.
 const SOURCE: Record<string, string> = {

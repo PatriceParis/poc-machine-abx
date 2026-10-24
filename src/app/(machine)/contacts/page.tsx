@@ -6,7 +6,7 @@ import { Carte, Engagement, Pagination, Palier, Vide } from "@/components/ui";
 import { Filtres, classeChamp } from "@/components/filtres";
 import { MarqueVerif } from "@/components/enrichir";
 
-export const metadata = { title: "Contacts · Machine à leads" };
+export const metadata = { title: "Contacts · Cockpit Hirondo ABX" };
 
 export default async function Contacts({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;

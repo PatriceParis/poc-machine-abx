@@ -7,7 +7,7 @@ import { FONCTIONS, estDecideur, fDate } from "@/lib/format";
 import { Action, BarreScore, Carte, Engagement, Famille, Palier, TitreSection, Vide } from "@/components/ui";
 import { Coordonnee, EmailsDecideurs } from "@/components/enrichir";
 
-export const metadata = { title: "Fiche compte · Machine à leads" };
+export const metadata = { title: "Fiche compte · Cockpit Hirondo ABX" };
 
 export default async function FicheCompte({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

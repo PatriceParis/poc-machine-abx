@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import { LoginForm } from "./login-form";
 
-export const metadata = { title: "Connexion · Machine à leads" };
+export const metadata = { title: "Connexion · Cockpit Hirondo ABX" };
 
 export default function LoginPage() {
   return (

@@ -4,7 +4,7 @@ import { cockpit } from "@/lib/donnees";
 import { fDate, fDateHeure, fNombre } from "@/lib/format";
 import { Action, BarreScore, Carte, Engagement, Palier, TitreSection, Vide } from "@/components/ui";
 
-export const metadata = { title: "Cockpit · Machine à leads" };
+export const metadata = { title: "Cockpit Hirondo ABX" };
 
 const ACTIONS_CASE: Record<string, Record<string, string>> = {
   A: { chaud: "Transmettre", tiede: "Reciblage et contenu", froid: "Audience de comptes" },

@@ -4,7 +4,7 @@ import { fDate, fNombre, q } from "@/lib/format";
 import { Action, BarreScore, Carte, Engagement, Pagination, Palier, Vide } from "@/components/ui";
 import { Filtres, classeChamp } from "@/components/filtres";
 
-export const metadata = { title: "Comptes · Machine à leads" };
+export const metadata = { title: "Comptes · Cockpit Hirondo ABX" };
 
 export default async function Comptes({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const sp = await searchParams;

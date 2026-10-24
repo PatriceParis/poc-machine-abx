@@ -44,7 +44,7 @@ export default async function MachineLayout({ children }: { children: React.Reac
         <main className="mt-5">{children}</main>
         <footer className="mt-10 flex flex-col gap-1.5 text-xs text-texte-3">
           <p>
-            Machine à leads Hirondo · données de ciblage et de campagne, usage interne · Adresse IP des visiteurs jamais conservée ·
+            Cockpit Hirondo ABX · données de ciblage et de campagne, usage interne · Adresse IP des visiteurs jamais conservée ·
             IP address data is powered by IPinfo
           </p>
           <a href="https://flow-ops.pro/" target="_blank" rel="noopener" className="self-start font-bold text-texte-2 hover:text-accent-fort">

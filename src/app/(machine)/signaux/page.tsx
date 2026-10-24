@@ -4,7 +4,7 @@ import { fDate, fNombre, q } from "@/lib/format";
 import { Carte, Famille, Pagination, Palier, Vide } from "@/components/ui";
 import { Filtres, classeChamp } from "@/components/filtres";
 
-export const metadata = { title: "Signaux · Machine à leads" };
+export const metadata = { title: "Signaux · Cockpit Hirondo ABX" };
 
 // Le contact et son poste sont déjà affichés : on n'ajoute que ce qui précise le signal.
 function precision(detail: Record<string, unknown>): string {
