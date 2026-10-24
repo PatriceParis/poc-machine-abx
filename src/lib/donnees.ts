@@ -110,14 +110,14 @@ export async function ficheCompte(id: number) {
     `select ${COLONNES_COMPTE}, s.site, s.url_linkedin, s.exclu, s.motif_exclusion, s.destinataire, s.a_transmettre
      from score_comptes s where s.compte_id = $1`, [id]);
   if (!compte) return null;
-  const signaux = await requete<{ id: number; libelle: string; famille: string; points: number; expire_jours: number | null; survenu_le: string; source: string; detail: Record<string, unknown>; contact: string | null; actif: boolean }>(
-    `select s.id::int, t.libelle, t.famille, t.points, t.expire_jours, s.survenu_le, s.source, s.detail,
-            nullif(trim(coalesce(c.prenom, '') || ' ' || coalesce(c.nom, '')), '') as contact,
+  const signaux = await requete<{ id: number; type_code: string; libelle: string; famille: string; points: number; expire_jours: number | null; survenu_le: string; source: string; detail: Record<string, unknown>; contact: string | null; contact_id: number | null; compte_contact: number | null; actif: boolean }>(
+    `select s.id::int, s.type_code, t.libelle, t.famille, t.points, t.expire_jours, s.survenu_le, s.source, s.detail,
+            nullif(trim(coalesce(c.prenom, '') || ' ' || coalesce(c.nom, '')), '') as contact, s.contact_id::int, c.compte_id::int as compte_contact,
             exists (select 1 from signaux_actifs a where a.id = s.id) as actif
      from signaux s join types_signal t on t.code = s.type_code left join contacts c on c.id = s.contact_id
      where s.compte_id = $1 order by (t.famille = 'adequation'), s.survenu_le desc`, [id]);
-  const contacts = await requete<{ id: number; prenom: string | null; nom: string | null; poste: string | null; fonction: string; url_linkedin: string | null; email: string | null; telephone: string | null; origine: string }>(
-    `select id::int, prenom, nom, poste, fonction, url_linkedin, email, telephone, origine::text
+  const contacts = await requete<{ id: number; prenom: string | null; nom: string | null; poste: string | null; fonction: string; url_linkedin: string | null; email: string | null; telephone: string | null; origine: string; enrichi_le: string | null; email_statut: string | null }>(
+    `select id::int, prenom, nom, poste, fonction, url_linkedin, email, telephone, origine::text, enrichi_le, email_statut
      from contacts where compte_id = $1 order by (fonction = 'autre'), poste`, [id]);
   return { compte, signaux, contacts };
 }
@@ -129,9 +129,10 @@ export async function listeSignaux(f: { famille?: string; page: number }) {
   filtre += " and not c.exclu";
   const [{ n }] = await requete<{ n: number }>(
     `select count(*)::int as n from signaux s join types_signal t on t.code = s.type_code join comptes c on c.id = s.compte_id where ${filtre}`, params);
-  const lignes = await requete<{ id: number; survenu_le: string; source: string; detail: Record<string, unknown>; libelle: string; famille: string; points: number; compte_id: number; compte: string; palier: string; score: number; contact: string | null; poste: string | null }>(
+  const lignes = await requete<{ id: number; survenu_le: string; source: string; detail: Record<string, unknown>; libelle: string; famille: string; points: number; compte_id: number; compte: string; palier: string; score: number; contact: string | null; contact_id: number | null; compte_contact: number | null; poste: string | null }>(
     `select s.id::int, s.survenu_le, s.source, s.detail, t.libelle, t.famille, t.points, c.id::int as compte_id, c.nom as compte,
-            sc.palier, sc.score, nullif(trim(coalesce(ct.prenom, '') || ' ' || coalesce(ct.nom, '')), '') as contact, ct.poste
+            sc.palier, sc.score, nullif(trim(coalesce(ct.prenom, '') || ' ' || coalesce(ct.nom, '')), '') as contact,
+            ct.id::int as contact_id, ct.compte_id::int as compte_contact, ct.poste
      from signaux s join types_signal t on t.code = s.type_code join comptes c on c.id = s.compte_id
      join score_comptes sc on sc.compte_id = c.id left join contacts ct on ct.id = s.contact_id
      where ${filtre} order by s.survenu_le desc limit 50 offset ${(f.page - 1) * 50}`, params);

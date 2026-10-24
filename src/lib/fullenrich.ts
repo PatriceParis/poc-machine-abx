@@ -49,6 +49,23 @@ export async function lancer(contacts: ContactAEnrichir[], champ: Champ, nom: st
   return d.enrichment_id;
 }
 
+/** Cherche l'email de chaque contact visé par une alerte « nouveau décideur » active qui n'en a pas et n'a jamais été
+ *  cherché. Appelé après chaque relevé des prises de poste, sans clic. enrichi_le est posé au lancement pour qu'un
+ *  second relevé ne relance pas la même recherche. Réservoir A seulement. Renvoie le nombre de recherches lancées. */
+export async function enrichirAlertes(retour: string): Promise<number> {
+  const contacts = await contactsAEnrichir(
+    // Table signaux et non la vue signaux_actifs : la vue ne garde qu'un déclencheur par type et par compte,
+    // or un compte peut avoir deux nouveaux décideurs.
+    `ct.email is null and ct.enrichi_le is null and not co.exclu and ct.id in (
+       select s.contact_id from signaux s join types_signal t on t.code = s.type_code
+       where s.type_code = 'nouveau_decideur_marketing' and s.contact_id is not null
+         and (t.expire_jours is null or s.survenu_le >= now() - make_interval(days => t.expire_jours)))`, []);
+  if (!contacts.length) return 0;
+  await requete(`update contacts set enrichi_le = now() where id = any($1::bigint[])`, [contacts.map((c) => c.id)]);
+  await lancer(contacts, "email", `Alertes nouveau décideur · ${contacts.length} emails`, retour);
+  return contacts.length;
+}
+
 export type Resultat = {
   id?: string;
   status?: string;
@@ -76,7 +93,11 @@ export async function ecrire(d: Resultat): Promise<{ contact_id: number; champ: 
     if (!id) continue;
     if (champ === "email") {
       const e = ligne.contact_info?.most_probable_work_email;
-      await requete(`update contacts set email = coalesce($2, email), email_statut = coalesce($3, email_statut), enrichi_le = now() where id = $1`,
+      // « introuvable » distingue une recherche sans résultat d'une recherche jamais faite (enrichi_le sert aussi au téléphone).
+      await requete(
+        `update contacts set email = coalesce($2, email),
+                email_statut = case when $2::text is not null then $3 when email is null then 'introuvable' else email_statut end,
+                enrichi_le = now() where id = $1`,
         [id, e?.email ?? null, e?.status ?? null]);
       if (e?.email) {
         await requete(`update comptes set domaine_email = coalesce(domaine_email, split_part($2, '@', 2)) where id = (select compte_id from contacts where id = $1)`, [id, e.email]);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requete } from "@/lib/db";
-import { CHAMPS, contactsAEnrichir, ecrire, lancer, lire, termine, type Champ } from "@/lib/fullenrich";
+import { CHAMPS, contactsAEnrichir, ecrire, enrichirAlertes, lancer, lire, termine, type Champ } from "@/lib/fullenrich";
 
 // Recherche d'email ou de téléphone par FullEnrich, à la demande (fiche compte). Un contact, ou d'un coup tous les
 // décideurs marketing d'un compte qui n'en ont pas. Réservée aux contacts sourcés par Flow Ops (réservoir A) :
@@ -9,7 +9,16 @@ import { CHAMPS, contactsAEnrichir, ecrire, lancer, lire, termine, type Champ } 
 const DECIDEUR = "(cmo|chief marketing|directeur.*marketing|directrice.*marketing|marketing director|director of marketing|head of marketing|vp marketing|directeur.*communication|directrice.*communication|chief brand|chief growth|head of growth)";
 
 export async function POST(request: Request) {
-  const { contact_id, compte_id, champ } = (await request.json()) as { contact_id?: number; compte_id?: number; champ?: Champ };
+  const { contact_id, compte_id, champ, alertes } = (await request.json()) as { contact_id?: number; compte_id?: number; champ?: Champ; alertes?: boolean };
+  const retour = `${new URL("/api/webhook/fullenrich", request.url).toString()}?cle=${encodeURIComponent(process.env.WEBHOOK_SECRET || "")}`;
+  // Rattrapage : emails des contacts des alertes « nouveau décideur » jamais cherchés (fait aussi après chaque relevé).
+  if (alertes) {
+    try {
+      return NextResponse.json({ n: await enrichirAlertes(retour) });
+    } catch (e) {
+      return NextResponse.json({ erreur: (e as Error).message }, { status: 502 });
+    }
+  }
   if (!champ || !(champ in CHAMPS) || (!contact_id && !compte_id)) return NextResponse.json({ erreur: "requête incomplète" }, { status: 400 });
 
   if (contact_id) {
@@ -23,7 +32,6 @@ export async function POST(request: Request) {
     : await contactsAEnrichir(`ct.compte_id = $1 and ${manque} and ct.poste ~* '${DECIDEUR}'`, [compte_id]);
   if (!contacts.length) return NextResponse.json({ erreur: "Aucun contact à chercher" }, { status: 404 });
 
-  const retour = `${new URL("/api/webhook/fullenrich", request.url).toString()}?cle=${encodeURIComponent(process.env.WEBHOOK_SECRET || "")}`;
   const nom = contact_id ? `${contacts[0].prenom ?? ""} ${contacts[0].nom ?? ""} · ${champ}`.trim() : `${contacts[0].compte ?? "Compte"} · décideurs · ${champ}`;
   try {
     return NextResponse.json({ enrichment_id: await lancer(contacts, champ, nom, retour), n: contacts.length });

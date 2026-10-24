@@ -17,10 +17,11 @@ async function attendre(id: string): Promise<Resultat[] | null> {
   return null;
 }
 
-export function Coordonnee({ contactId, champ, initiale, autorise }: { contactId: number; champ: "email" | "telephone"; initiale: string | null; autorise: boolean }) {
+/** `etat` : résultat d'une recherche précédente ou lancée automatiquement (« Introuvable le 24 oct. »). */
+export function Coordonnee({ contactId, champ, initiale, autorise, etat = null }: { contactId: number; champ: "email" | "telephone"; initiale: string | null; autorise: boolean; etat?: string | null }) {
   const [valeur, setValeur] = useState(initiale);
   const [enCours, setEnCours] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(etat);
   const Icone = champ === "email" ? Mail : Phone;
   const libelle = champ === "email" ? "Chercher email" : "Chercher téléphone";
 

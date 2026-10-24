@@ -16,6 +16,10 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
   const { compte: c, signaux, contacts } = fiche;
   const chaleur = signaux.filter((s) => s.famille !== "adequation" && s.famille !== "malus");
   const fixes = signaux.filter((s) => s.famille === "adequation" || s.famille === "malus");
+  // Contacts visés par une alerte « nouveau décideur » active : en tête de liste, marqués.
+  const enAlerte = new Set(signaux.filter((s) => s.type_code === "nouveau_decideur_marketing" && s.actif && s.contact_id).map((s) => s.contact_id));
+  const rang = (ct: { id: number; poste: string | null }) => (enAlerte.has(ct.id) ? 2 : 0) + (estDecideur(ct.poste) ? 1 : 0);
+  const recent = (d: string | null) => Boolean(d && Date.now() - new Date(d).getTime() < 5 * 60000);
 
   return (
     <div className="flex flex-col gap-5">
@@ -60,7 +64,17 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
                 <li key={s.id} className={clsx("flex items-start justify-between gap-3 border-l-2 pl-3", s.actif ? "border-accent" : "border-bord opacity-60")}>
                   <div>
                     <p className="text-sm">{s.libelle}</p>
-                    <p className="text-xs text-texte-3">{fDate(s.survenu_le)} · {s.source}{s.contact ? ` · ${s.contact}` : ""}{s.actif ? "" : " · expiré"}</p>
+                    <p className="text-xs text-texte-3">
+                      {fDate(s.survenu_le)} · {s.source}
+                      {s.contact && s.contact_id && (
+                        <>
+                          {" · "}
+                          <a href={s.compte_contact === c.compte_id ? `#contact-${s.contact_id}` : `/comptes/${s.compte_contact}#contact-${s.contact_id}`}
+                            className="text-accent-fort hover:underline">{s.contact}</a>
+                        </>
+                      )}
+                      {s.actif ? "" : " · expiré"}
+                    </p>
                   </div>
                   <span className="flex items-center gap-2"><Famille famille={s.famille} /><span className="chiffres text-sm">+{s.points}</span></span>
                 </li>
@@ -97,14 +111,20 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
                 </tr>
               </thead>
               <tbody>
-                {[...contacts].sort((a, b) => Number(estDecideur(b.poste)) - Number(estDecideur(a.poste))).map((ct) => (
-                  <tr key={ct.id} className="border-b border-bord/60">
+                {[...contacts].sort((a, b) => rang(b) - rang(a)).map((ct) => (
+                  <tr key={ct.id} id={`contact-${ct.id}`} className="border-b border-bord/60 scroll-mt-24 target:bg-accent/10">
                     <td className="px-5 py-2.5">
-                      <p className="font-medium">{[ct.prenom, ct.nom].filter(Boolean).join(" ") || "Sans nom"}</p>
+                      <p className="font-medium flex flex-wrap items-center gap-2">
+                        {[ct.prenom, ct.nom].filter(Boolean).join(" ") || "Sans nom"}
+                        {enAlerte.has(ct.id) && <span className="px-1.5 py-0.5 rounded bg-accent/15 text-accent-fort text-[11px] font-medium">Nouveau décideur</span>}
+                      </p>
                       <p className="text-xs text-texte-3">{ct.poste}</p>
                     </td>
                     <td className="px-3 py-2.5 text-texte-2">{estDecideur(ct.poste) ? "Décideur marketing" : FONCTIONS[ct.fonction] ?? ct.fonction}</td>
-                    <td className="px-3 py-2.5"><Coordonnee contactId={ct.id} champ="email" initiale={ct.email} autorise={ct.origine === "A"} /></td>
+                    <td className="px-3 py-2.5">
+                      <Coordonnee contactId={ct.id} champ="email" initiale={ct.email} autorise={ct.origine === "A"}
+                        etat={ct.email ? null : ct.email_statut === "introuvable" ? `Introuvable le ${fDate(ct.enrichi_le)}` : recent(ct.enrichi_le) ? "Recherche en cours" : null} />
+                    </td>
                     <td className="px-3 py-2.5"><Coordonnee contactId={ct.id} champ="telephone" initiale={ct.telephone} autorise={ct.origine === "A"} /></td>
                     <td className="px-5 py-2.5">{ct.url_linkedin && <a href={ct.url_linkedin} target="_blank" rel="noopener" className="text-accent-fort hover:underline inline-flex items-center gap-1">Profil <ExternalLink className="w-3 h-3" /></a>}</td>
                   </tr>

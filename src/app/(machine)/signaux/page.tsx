@@ -51,7 +51,15 @@ export default async function Signaux({ searchParams }: { searchParams: Promise<
                     <span className="chiffres text-texte-2">+{s.points}</span>
                   </p>
                   <p className="text-xs text-texte-3">
-                    {[s.source, s.contact && `${s.contact}${s.poste ? `, ${s.poste}` : ""}`, precision(s.detail)].filter(Boolean).join(" · ")}
+                    {s.source}
+                    {s.contact && s.contact_id && (
+                      <>
+                        {" · "}
+                        <Link href={`/comptes/${s.compte_contact ?? s.compte_id}#contact-${s.contact_id}`} className="text-accent-fort hover:underline">{s.contact}</Link>
+                        {s.poste ? `, ${s.poste}` : ""}
+                      </>
+                    )}
+                    {precision(s.detail) ? ` · ${precision(s.detail)}` : ""}
                   </p>
                 </div>
               </li>

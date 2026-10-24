@@ -90,6 +90,21 @@ async function creerContact(compteId: number, d: { url?: string; linkedin_id?: s
   return l.id;
 }
 
+/** Une personne arrivée dans un autre compte de la base y est rattachée, avec son nouvel intitulé : l'alerte
+ *  « nouveau décideur » du compte doit trouver son contact dans la fiche. L'email de l'ancien employeur est
+ *  gardé dans le suivi, plus dans la fiche, car il ne sert plus à la joindre. */
+async function deplacerContact(contact: Contact, vers: Compte, poste: string, ref: Referentiel) {
+  const ancien = ref.comptes.find((c) => c.id === contact.compte_id)?.nom ?? null;
+  await requete(
+    `update contacts set compte_id = $2, poste = $3, fonction = $4, email = null,
+            suivi = coalesce(suivi, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object('parti_de', $5::text, 'ancien_email', email)),
+            suivi_le = now(), mis_a_jour_le = now()
+     where id = $1`,
+    [contact.id, vers.id, poste || contact.poste, fonctionDuPoste(poste || contact.poste), ancien]);
+  contact.compte_id = vers.id;
+  contact.poste = poste || contact.poste;
+}
+
 export async function ecrireSignaux(signaux: Signal[]): Promise<number> {
   if (!signaux.length) return 0;
   const r = await requete<{ id: number }>(
@@ -140,6 +155,7 @@ export async function interpreterPostes(items: Record<string, unknown>[], ref: R
       const prenom = it.firstName as string | undefined;
       const nom = it.lastName as string | undefined;
       const existant = ref.contactParId.get(id) ?? contactParNom(ref, compte.id, prenom, nom);
+      if (existant && existant.compte_id !== compte.id) await deplacerContact(existant, compte, titreDe(p), ref);
       const contactId = existant?.id ?? await creerContact(compte.id, { url: it.linkedinUrl as string, linkedin_id: id, prenom, nom, poste: titreDe(p) }, "A", ref);
       if (manquants) {
         // Même référence que l'import de la base : le signal d'adéquation n'est jamais compté deux fois.
@@ -207,7 +223,10 @@ export async function interpreterDecideurs(items: Record<string, unknown>[], ref
   }
   if (suivis.length) {
     await requete(
-      `update contacts c set suivi = v.s::jsonb, suivi_le = now(), compte_id = coalesce(v.co, c.compte_id), poste = coalesce(v.p, c.poste), mis_a_jour_le = now()
+      // Rattaché au nouveau compte : l'email de l'ancien employeur passe dans le suivi.
+      `update contacts c set suivi = v.s::jsonb || case when v.co is not null and c.email is not null then jsonb_build_object('ancien_email', c.email) else '{}'::jsonb end,
+              email = case when v.co is not null then null else c.email end,
+              suivi_le = now(), compte_id = coalesce(v.co, c.compte_id), poste = coalesce(v.p, c.poste), mis_a_jour_le = now()
        from unnest($1::bigint[], $2::text[], $3::bigint[], $4::text[]) as v(id, s, co, p) where c.id = v.id`,
       [suivis.map((s) => s.id), suivis.map((s) => s.suivi), suivis.map((s) => s.compte), suivis.map((s) => s.poste)]);
   }

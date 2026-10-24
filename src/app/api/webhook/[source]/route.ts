@@ -3,7 +3,7 @@ import { requete } from "@/lib/db";
 import { safeEqual } from "@/lib/auth";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { lireJeu } from "@/lib/apify";
-import { ecrire as ecrireFullEnrich } from "@/lib/fullenrich";
+import { ecrire as ecrireFullEnrich, enrichirAlertes } from "@/lib/fullenrich";
 import { interpreterDecideurs, interpreterEngageurs, interpreterOffres, interpreterPostes, referentiel } from "@/lib/releves";
 
 // Réception des webhooks (Brevo, ReachMCP, formulaire du test, LinkedIn, Apify). Secret obligatoire,
@@ -44,10 +44,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ sou
     await requete(`insert into evenements_bruts (source, charge, origine) values ($1, $2::jsonb, 'C')`, [source, JSON.stringify(charge)]);
     return NextResponse.json({ ok: true });
   }
-  return NextResponse.json(await finDeRun(charge));
+  const retour = `${new URL("/api/webhook/fullenrich", request.url).toString()}?cle=${encodeURIComponent(secret)}`;
+  return NextResponse.json(await finDeRun(charge, retour));
 }
 
-async function finDeRun(charge: Record<string, unknown>) {
+async function finDeRun(charge: Record<string, unknown>, retourFullEnrich: string) {
   const run = charge.resource as { id?: string; status?: string; defaultDatasetId?: string; usageTotalUsd?: number } | undefined;
   if (!run?.id) return { ok: false, raison: "run absent" };
   const [releve] = await requete<{ id: number; nature: string; detail: Record<string, unknown>; statut: string }>(
@@ -84,7 +85,13 @@ async function finDeRun(charge: Record<string, unknown>) {
       `update releves set statut = 'terminé', termine_le = now(), elements = $2, nouveaux_signaux = $3,
               detail = detail || jsonb_build_object('cout_usd', $4::numeric) where id = $1`,
       [releve.id, items.length, nouveaux, run.usageTotalUsd ?? null]);
-    return { ok: true, elements: items.length, nouveaux };
+    // Un nouveau décideur arrive avec son email cherché (1 crédit FullEnrich s'il est trouvé). Un échec ici ne
+    // remet pas en cause le relevé, déjà enregistré.
+    let emails = 0;
+    if (["postes", "manquants", "decideurs"].includes(releve.nature)) {
+      emails = await enrichirAlertes(retourFullEnrich).catch(() => 0);
+    }
+    return { ok: true, elements: items.length, nouveaux, emails };
   } catch (e) {
     await requete(`update releves set statut = 'échec', termine_le = now(), erreur = $2 where id = $1`, [releve.id, String((e as Error).message).slice(0, 300)]);
     return { ok: false };
