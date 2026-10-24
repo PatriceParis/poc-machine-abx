@@ -5,7 +5,7 @@ import { requete } from "@/lib/db";
 import { normaliser } from "@/lib/visites";
 
 type Compte = { id: number; nom: string; url: string | null; linkedin_id: string | null; effectif: number | null };
-type Contact = { id: number; compte_id: number | null; url: string | null; linkedin_id: string | null; prenom: string | null; nom: string | null; suivi: Record<string, unknown> | null };
+type Contact = { id: number; compte_id: number | null; url: string | null; linkedin_id: string | null; prenom: string | null; nom: string | null; poste: string | null; suivi: Record<string, unknown> | null };
 type Position = { title?: string; position?: string; companyName?: string; companyId?: string; companyLinkedinUrl?: string; current?: boolean; startedOn?: { month?: number | string; year?: number }; startDate?: { month?: number | string; year?: number }; company?: { industry?: string } };
 type Signal = { type: string; compte_id: number; contact_id: number | null; le: string; ref: string; detail: Record<string, unknown>; origine: "A" | "C" };
 
@@ -39,7 +39,7 @@ const titreDe = (p: Position) => p.title ?? p.position ?? "";
 
 export async function referentiel() {
   const comptes = await requete<Compte>(`select id::int, nom, url_linkedin as url, linkedin_id, effectif from comptes where not exclu`);
-  const contacts = await requete<Contact>(`select id::int, compte_id::int, url_linkedin as url, linkedin_id, prenom, nom, suivi from contacts`);
+  const contacts = await requete<Contact>(`select id::int, compte_id::int, url_linkedin as url, linkedin_id, prenom, nom, poste, suivi from contacts`);
   const parUrl = new Map(comptes.filter((c) => c.url).map((c) => [urlNormale(c.url)!, c]));
   const parId = new Map(comptes.filter((c) => c.linkedin_id).map((c) => [c.linkedin_id!, c]));
   const contactParUrl = new Map(contacts.filter((c) => c.url).map((c) => [urlNormale(c.url)!, c]));
@@ -75,7 +75,7 @@ async function creerContact(compteId: number, d: { url?: string; linkedin_id?: s
      on conflict (url_linkedin) do update set linkedin_id = coalesce(contacts.linkedin_id, excluded.linkedin_id), mis_a_jour_le = now()
      returning id::int`,
     [compteId, d.url ?? null, d.linkedin_id ?? null, d.prenom ?? null, d.nom ?? null, d.poste ?? null, fonctionDuPoste(d.poste), origine]);
-  const c: Contact = { id: l.id, compte_id: compteId, url: d.url ?? null, linkedin_id: d.linkedin_id ?? null, prenom: d.prenom ?? null, nom: d.nom ?? null, suivi: null };
+  const c: Contact = { id: l.id, compte_id: compteId, url: d.url ?? null, linkedin_id: d.linkedin_id ?? null, prenom: d.prenom ?? null, nom: d.nom ?? null, poste: d.poste ?? null, suivi: null };
   ref.contacts.push(c);
   if (c.url) ref.contactParUrl.set(urlNormale(c.url)!, c);
   if (c.linkedin_id) ref.contactParId.set(c.linkedin_id, c);
@@ -163,13 +163,18 @@ export async function interpreterDecideurs(items: Record<string, unknown>[], ref
     const principale = surPlace ?? positions[0];
     const debut = debutDe(principale);
     const mois = maintenant.slice(0, 7);
-    if (surPlace) {
-      const ancienTitre = (contact.suivi?.titre as string) ?? null;
-      if (estDecideur(titreDe(surPlace)) && recent(debut) && ancienTitre !== titreDe(surPlace)) {
+    // Pharow nomme l'entité juridique, LinkedIn la marque ou une autre page (« Caisse Reg Credit Agricol Mutuel
+    // Lorrain » et « Crédit Agricole de Lorraine », « Rci Bank » et « Mobilize ») : un nom différent ne prouve pas
+    // un départ. Départ seulement si le poste actuel a commencé depuis moins de six mois et que l'intitulé a changé.
+    const memeIntitule = normaliser(titreDe(principale)) === normaliser(contact.poste || "");
+    if (surPlace || !recent(debut) || memeIntitule) {
+      const poste = surPlace ?? principale;
+      const ancienTitre = (contact.suivi?.titre as string) ?? contact.poste ?? null;
+      if (surPlace && estDecideur(titreDe(poste)) && recent(debut) && ancienTitre !== titreDe(poste)) {
         signaux.push({ type: "nouveau_decideur_marketing", compte_id: contact.compte_id, contact_id: contact.id, le: debut!.toISOString(),
-          ref: `poste:${contact.id}:${contact.compte_id}:${debut!.toISOString().slice(0, 7)}`, detail: { poste: titreDe(surPlace), entreprise: surPlace.companyName, nom: `${contact.prenom ?? ""} ${contact.nom ?? ""}`.trim() }, origine: "A" });
+          ref: `poste:${contact.id}:${contact.compte_id}:${debut!.toISOString().slice(0, 7)}`, detail: { poste: titreDe(poste), entreprise: poste.companyName, nom: `${contact.prenom ?? ""} ${contact.nom ?? ""}`.trim() }, origine: "A" });
       }
-      suivis.push({ id: contact.id, suivi: JSON.stringify({ entreprise: surPlace.companyName, titre: titreDe(surPlace), debut: debut?.toISOString() ?? null, lu_le: maintenant }), compte: null, poste: titreDe(surPlace) || null });
+      suivis.push({ id: contact.id, suivi: JSON.stringify({ entreprise: poste.companyName, titre: titreDe(poste), debut: debut?.toISOString() ?? null, lu_le: maintenant }), compte: null, poste: null });
     } else {
       // Parti : le poste se libère chez l'ancien compte. Date : début du nouveau poste s'il est connu.
       const le = (debut ?? new Date()).toISOString();
