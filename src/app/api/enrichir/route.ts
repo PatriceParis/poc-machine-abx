@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { adressePublique } from "@/lib/adresse";
 import { requete } from "@/lib/db";
 import { CHAMPS, contactsAEnrichir, ecrire, enrichirAlertes, lancer, lire, termine, type Champ } from "@/lib/fullenrich";
 
@@ -13,7 +14,7 @@ const DECIDEUR ="(cmo|chief marketing|directeur.*marketing|directrice.*marketing
 
 export async function POST(request: Request) {
   const { contact_id, compte_id, champ, alertes } = (await request.json()) as { contact_id?: number; compte_id?: number; champ?: Champ; alertes?: boolean };
-  const retour = `${new URL("/api/webhook/fullenrich", request.url).toString()}?cle=${encodeURIComponent(process.env.WEBHOOK_SECRET || "")}`;
+  const retour = `${adressePublique(request)}/api/webhook/fullenrich?cle=${encodeURIComponent(process.env.WEBHOOK_SECRET || "")}`;
   // Rattrapage : emails des contacts des alertes « nouveau décideur » jamais cherchés (fait aussi après chaque relevé).
   if (alertes) {
     try {

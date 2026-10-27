@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
+import { adressePublique } from "@/lib/adresse";
 import { requete } from "@/lib/db";
 import { safeEqual } from "@/lib/auth";
 import { ACTEURS, lancer } from "@/lib/apify";
 import { verifierEnAttente } from "@/lib/zerobounce";
 import { secondPassageEnAttente } from "@/lib/pipecorn";
 
-// Tâche quotidienne (Vercel Cron, une fois par jour sur l'offre gratuite). Elle lance ce qui est dû :
-//   engageurs  chaque jour, pour chaque post suivi
-//   postes     chaque semaine, recherche des décideurs marketing qui ont changé de poste
-//   decideurs  chaque mois, relecture des décideurs des comptes A et B
-//   chaque jour aussi, vérification ZeroBounce des emails en attente et second passage Pipecorn
-// Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|engageurs|verifications lance à la demande.
+// Deux déclenchements :
+//   ?forcer=hebdo  la mise à jour hebdomadaire, le lundi à 5 h heure de Paris (GitHub Actions, rafraichissement-hebdo.yml) :
+//                  prises de poste, offres d'emploi, engageurs des posts suivis, relecture des décideurs si un mois
+//                  s'est écoulé, vérification des emails et second passage d'enrichissement
+//   sans forcer    la tâche quotidienne de Vercel : vérification des emails, second passage, et engageurs des seuls
+//                  posts en période de relecture quotidienne (date « jusqu_au »)
+// Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|offres|engageurs|manquants|verifications
+// lance un relevé à la demande. Chaque passage est noté dans releves (nature « tache »).
 export const maxDuration = 300;
 
 const PLAFONDS = { postes: 0.5, decideurs: 2.5, engageurs: 1, manquants: 1.5, offres: 0.6 };
@@ -27,22 +30,28 @@ export async function GET(request: Request) {
   if (!secret || !safeEqual(donne, secret)) return NextResponse.json({ ok: false }, { status: 401 });
 
   const forcer = new URL(request.url).searchParams.get("forcer");
-  // Chaque jour, hors relevés : vérification ZeroBounce des emails restés en attente, puis second passage Pipecorn
-  // sur les introuvables et les refusés (crédits épuisés la veille ou le mois précédent).
-  const enrichissement = !forcer || forcer === "verifications";
+  const hebdo = forcer === "hebdo";
+  // Vérification ZeroBounce des emails restés en attente, puis second passage Pipecorn sur les introuvables et les
+  // refusés (crédits épuisés la veille ou le mois précédent).
+  const enrichissement = !forcer || hebdo || forcer === "verifications";
   const verification = enrichissement ? await verifierEnAttente().catch(() => null) : null;
   const cascade = enrichissement ? await secondPassageEnAttente(150000).catch(() => null) : null;
   if (forcer === "verifications") return NextResponse.json({ ok: true, verification, cascade });
 
   const params = new Map((await requete<{ cle: string; valeur: unknown }>(`select cle, valeur from parametres`)).map((p) => [p.cle, p.valeur]));
-  if (params.get("releves_actifs") !== true) return NextResponse.json({ ok: true, lance: [], verification, cascade, raison: "relevés coupés" });
+  const tache = (lances: string[]) => requete(`insert into releves (nature, statut, termine_le, detail) values ('tache', 'terminé', now(), $1::jsonb)`,
+    [JSON.stringify({ hebdo, lances, verification, cascade })]);
+  if (params.get("releves_actifs") !== true) {
+    await tache([]);
+    return NextResponse.json({ ok: true, lance: [], verification, cascade, raison: "relevés coupés" });
+  }
 
-  const retour = (nature: string) => `${new URL("/api/webhook/apify", request.url).toString()}?cle=${encodeURIComponent(process.env.WEBHOOK_SECRET || "")}&nature=${nature}`;
+  const retour = (nature: string) => `${adressePublique(request)}/api/webhook/apify?cle=${encodeURIComponent(process.env.WEBHOOK_SECRET || "")}&nature=${nature}`;
   const lances: string[] = [];
   const noter = (nature: string, runId: string, detail: unknown) =>
     requete(`insert into releves (nature, run_id, detail) values ($1, $2, $3::jsonb)`, [nature, runId, JSON.stringify(detail)]);
 
-  if (forcer === "postes" || (!forcer && depuis(await dernier("postes")) >= 6.5)) {
+  if (forcer === "postes" || hebdo) {
     const entree = {
       profileScraperMode: "Short", recentlyChangedJobs: true, locations: ["France"], maxItems: 100, takePages: 4,
       currentJobTitles: params.get("surveillance_titres"), industryIds: params.get("surveillance_secteurs"), companyHeadcount: params.get("surveillance_effectifs"),
@@ -51,7 +60,7 @@ export async function GET(request: Request) {
     lances.push("postes");
   }
 
-  if (forcer === "decideurs" || (!forcer && depuis(await dernier("decideurs")) >= 28)) {
+  if (forcer === "decideurs" || (hebdo && depuis(await dernier("decideurs")) >= 27)) {
     const urls = (await requete<{ url: string }>(
       `select ct.url_linkedin as url from contacts ct join score_comptes s on s.compte_id = ct.compte_id
        where not s.exclu and s.palier in ('A', 'B') and ct.url_linkedin like 'https://www.linkedin.com/in/%'
@@ -65,7 +74,7 @@ export async function GET(request: Request) {
 
   // Chaque semaine : offres d'emploi LinkedIn en marketing ops, CRM, ABM publiées en France depuis 7 jours.
   // Préféré à ReachMCP : sans compte relié, et l'offre porte l'adresse de la page de l'entreprise, la clé du TAM.
-  if (forcer === "offres" || (!forcer && depuis(await dernier("offres")) >= 6.5)) {
+  if (forcer === "offres" || hebdo) {
     const entree = { keywords: params.get("offres_mots_cles"), location: "France", datePosted: "pastWeek", scrapeCompany: false, limitPerSource: 500 };
     await noter("offres", await lancer(ACTEURS.offres, entree, retour("offres"), PLAFONDS.offres), { entree });
     lances.push("offres");
@@ -87,8 +96,8 @@ export async function GET(request: Request) {
     }
   }
 
-  if (forcer === "engageurs" || !forcer) {
-    // Un post se relit chaque jour jusqu'à sa date « jusqu_au » (période où il prend ses réactions), sinon chaque semaine.
+  if (forcer === "engageurs" || hebdo || !forcer) {
+    // Un post se relit chaque jour jusqu'à sa date « jusqu_au » (période où il prend ses réactions), sinon chaque lundi.
     // Chaque lecture repaie tous les engageurs : la fréquence décide du coût.
     const posts = (params.get("posts_suivis") as { url: string; nature: string; jusqu_au?: string }[] | undefined) ?? [];
     for (const post of posts) {
@@ -96,7 +105,7 @@ export async function GET(request: Request) {
         `select max(lance_le) as le from releves where nature = 'engageurs' and detail->'post'->>'url' = $1 and statut <> 'échec'`, [post.url]);
       const quotidien = post.jusqu_au ? new Date(post.jusqu_au).getTime() >= Date.now() : false;
       const ecart = depuis(l?.le ? new Date(l.le) : null);
-      if (!forcer && ecart < (quotidien ? 0.9 : 6.5)) continue;
+      if (!forcer && (!quotidien || ecart < 0.9)) continue;
       for (const nature of ["reactions", "commentaires"] as const) {
         const entree = { posts: [post.url], maxItems: 300, profileScraperMode: "main", ...(nature === "commentaires" ? { scrapeReplies: true } : {}) };
         const runId = await lancer(ACTEURS[nature], entree, `${retour("engageurs")}&type=${nature}`, PLAFONDS.engageurs);
@@ -105,5 +114,6 @@ export async function GET(request: Request) {
       }
     }
   }
+  await tache(lances);
   return NextResponse.json({ ok: true, lances, verification, cascade });
 }

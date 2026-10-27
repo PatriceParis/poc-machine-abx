@@ -1,0 +1,52 @@
+# Mise à jour hebdomadaire de la machine à leads : chaque lundi à 5 h, heure de Paris, appelle /api/cron?forcer=hebdo
+# (prises de poste, offres d'emploi, engageurs des posts suivis, relecture mensuelle des décideurs quand elle est due,
+# vérification des emails). Les résultats des relevés Apify reviennent ensuite par webhook, en quelques minutes.
+#
+# GitHub ne planifie qu'en UTC : deux crons couvrent l'été (3 h UTC) et l'hiver (4 h UTC), et la première étape ne laisse
+# passer que celui qui correspond au décalage horaire de Paris du jour, même si GitHub le lance en retard.
+# Prérequis : secret du dépôt CRON_SECRET, identique à la variable CRON_SECRET du projet Vercel.
+name: Mise a jour hebdomadaire
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  mettre-a-jour:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Heure de Paris
+        id: heure
+        env:
+          CRON: ${{ github.event.schedule }}
+        run: |
+          echo "Heure de Paris : $(TZ=Europe/Paris date '+%Y-%m-%d %H:%M %z')"
+          # +0100 (hiver) : 5 h à Paris = 4 h UTC ; +0200 (été) : 5 h à Paris = 3 h UTC.
+          if [ "$(TZ=Europe/Paris date +%z)" = "+0100" ]; then attendu="0 4 * * 1"; else attendu="0 3 * * 1"; fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "$CRON" = "$attendu" ]; then
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "Le cron $CRON ne correspond pas à 5 h à Paris en cette saison : rien à faire."
+          fi
+
+      - name: Mise à jour
+        if: steps.heure.outputs.go == 'true'
+        env:
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SECRET" ]; then echo "::error::secret CRON_SECRET absent"; exit 1; fi
+          curl -fsS --max-time 290 -H "Authorization: Bearer $SECRET" "https://poc-machine-abx.vercel.app/api/cron?forcer=hebdo"
+
+      # GitHub coupe les tâches planifiées d'un dépôt public resté 60 jours sans activité : réactiver la tâche
+      # chaque semaine la garde en marche, sans aucun commit.
+      - name: Garder la planification active
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/rafraichissement-hebdo.yml/enable"

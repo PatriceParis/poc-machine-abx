@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { adressePublique } from "@/lib/adresse";
 import { requete } from "@/lib/db";
 import { safeEqual } from "@/lib/auth";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -44,7 +45,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ sou
     await requete(`insert into evenements_bruts (source, charge, origine) values ($1, $2::jsonb, 'C')`, [source, JSON.stringify(charge)]);
     return NextResponse.json({ ok: true });
   }
-  const retour = `${new URL("/api/webhook/fullenrich", request.url).toString()}?cle=${encodeURIComponent(secret)}`;
+  const retour = `${adressePublique(request)}/api/webhook/fullenrich?cle=${encodeURIComponent(secret)}`;
   return NextResponse.json(await finDeRun(charge, retour));
 }
 
