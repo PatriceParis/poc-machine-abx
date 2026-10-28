@@ -5,7 +5,7 @@
 //   messages  un message reçu d'une personne d'un compte de la base (reponse_linkedin), annoncé par webhook
 // Les visiteurs du profil exigent LinkedIn Premium : sans abonnement, la liste revient vide.
 import { requete } from "@/lib/db";
-import { compteDe, creerContact, ecrireSignaux, estDecideur, fonctionDuPoste, referentiel, urlNormale, type Compte, type Referentiel, type Signal } from "@/lib/releves";
+import { compteDe, creerContact, ecrireSignaux, estDecideur, fonctionDuPoste, personneExclue, referentiel, urlNormale, type Compte, type Referentiel, type Signal } from "@/lib/releves";
 
 type PostReach = { post_urn: string; post_url: string; published_at_relative?: string; total_likes: number; total_comments: number };
 type Engageur = { type: "like" | "comment"; linkedin_id: string; linkedin_public_id?: string; firstname?: string; lastname?: string; headline?: string };
@@ -80,6 +80,7 @@ async function contexte() {
 
 async function signalPour(p: Personne, type: string, le: string, ref_: string, detail: Record<string, unknown>,
   ctx: Awaited<ReturnType<typeof contexte>>): Promise<Signal | null> {
+  if (personneExclue(ctx.ref, { public_id: p.public_id, linkedin_id: p.linkedin_id, titre: p.titre })) return null;
   const r = await rapprocher(p, ctx.ref, ctx.employeurs, ctx.quota, ctx.compteReach);
   if (!r || r.compte.exclu) return null;
   const url = p.public_id ? `https://www.linkedin.com/in/${p.public_id}` : undefined;
@@ -88,12 +89,59 @@ async function signalPour(p: Personne, type: string, le: string, ref_: string, d
   return { type, compte_id: r.compte.id, contact_id: contactId, le, ref: ref_, detail: { ...detail, poste: p.titre ?? null }, origine: "C" };
 }
 
+// Retire les signaux d'intention déjà portés par une personne devenue exclue (même requête que la configuration).
+export const RETIRER_SIGNAUX_EXCLUS = `delete from signaux s using contacts ct
+  where s.contact_id = ct.id
+    and s.type_code in ('engagement_post', 'commentaire_post', 'engagement_pairs', 'reponse_linkedin', 'visite_profil')
+    and (lower(substring(ct.url_linkedin from '/in/([^/?#]+)')) in (select cle from personnes_exclues)
+         or ct.linkedin_id in (select cle from personnes_exclues))`;
+
+type Membre = { linkedin_id?: string; linkedin_public_id?: string; public_id?: string; profile_url?: string; firstname?: string; lastname?: string; full_name?: string };
+/** Une fois par semaine : les personnes dont le poste actuel est chez le client (recherche LinkedIn par page entreprise,
+ *  10 résultats par page) rejoignent les personnes exclues. Lancée avant les fiches, elle passe en premier sur le quota. */
+async function relireMembres(ctx: Awaited<ReturnType<typeof contexte>>) {
+  const [p] = await requete<{ valeur: string | null }>(`select valeur #>> '{}' as valeur from parametres where cle = 'client_linkedin_id'`);
+  const [d] = await requete<{ le: string | null }>(`select max(lance_le) as le from releves where nature = 'membres' and statut = 'terminé'`);
+  if (!p?.valeur || (d?.le && Date.now() - new Date(d.le).getTime() < 6.5 * 864e5)) return null;
+  const recherche = `https://www.linkedin.com/search/results/people/?currentCompany=%5B%22${p.valeur}%22%5D&origin=FACETED_SEARCH`;
+  const membres: Membre[] = [];
+  try {
+    for (let start = 0; start < 80; start += 10) {
+      const r = await appel<{ items?: Membre[]; results?: Membre[]; profiles?: Membre[] }>(
+        `/linkedin/${ctx.compteReach}/scrape-search?url=${encodeURIComponent(recherche)}&start=${start}`);
+      const page = r.items ?? r.results ?? r.profiles ?? [];
+      membres.push(...page);
+      if (page.length < 10) break;
+    }
+  } catch (e) {
+    await requete(`insert into releves (nature, statut, termine_le, erreur) values ('membres', 'échec', now(), $1)`, [String((e as Error).message).slice(0, 200)]);
+    return { erreur: String((e as Error).message).slice(0, 200) };
+  }
+  const lignes: { cle: string; nom: string }[] = [];
+  for (const m of membres) {
+    const nom = (m.full_name ?? `${m.firstname ?? ""} ${m.lastname ?? ""}`).trim();
+    const pub = (m.linkedin_public_id ?? m.public_id ?? (m.profile_url || "").toLowerCase().match(/\/in\/([^/?#]+)/)?.[1] ?? "").toLowerCase();
+    if (pub) lignes.push({ cle: pub, nom });
+    if (m.linkedin_id) lignes.push({ cle: m.linkedin_id, nom });
+  }
+  const r = await requete(
+    `insert into personnes_exclues (cle, nom, motif, source)
+     select v.c, v.n, 'poste actuel chez le client (LinkedIn)', 'linkedin' from unnest($1::text[], $2::text[]) as v(c, n)
+     on conflict (cle) do nothing returning 1`, [lignes.map((l) => l.cle), lignes.map((l) => l.nom)]);
+  for (const l of lignes) ctx.ref.personnesExclues.add(l.cle);
+  const retires = await requete(`${RETIRER_SIGNAUX_EXCLUS} returning 1`);
+  await requete(`insert into releves (nature, statut, termine_le, elements, detail) values ('membres', 'terminé', now(), $1, $2::jsonb)`,
+    [membres.length, JSON.stringify({ nouveaux_exclus: r.length, signaux_retires: retires.length })]);
+  return { membres: membres.length, nouveaux_exclus: r.length, signaux_retires: retires.length };
+}
+
 /** Relecture quotidienne des posts des auteurs suivis, puis rapprochement de tous les engageurs des 60 derniers jours
  *  (ceux qui attendaient une lecture de fiche passent dès que le quota le permet). */
 export async function relireReach(budgetMs = 120000) {
   const debut = Date.now();
   const ctx = await contexte();
-  const bilan = { posts: 0, relus: 0, engagements: 0, fiches: 0, nouveaux: 0 };
+  const membres = await relireMembres(ctx);
+  const bilan = { posts: 0, relus: 0, engagements: 0, fiches: 0, nouveaux: 0, membres };
   const quotaInitial = ctx.quota.reste;
   for (const auteur of ctx.auteurs) {
     const { posts } = await appel<{ posts: PostReach[] }>(`/linkedin/${ctx.compteReach}/user-posts?linkedin_id_or_url=${encodeURIComponent(auteur)}&count=20`);

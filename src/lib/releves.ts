@@ -51,9 +51,19 @@ export async function referentiel() {
   const contactParUrl = new Map(contacts.filter((c) => c.url).map((c) => [urlNormale(c.url)!, c]));
   const contactParId = new Map(contacts.filter((c) => c.linkedin_id).map((c) => [c.linkedin_id!, c]));
   const estExclu = (nom?: string | null) => exclusions.some((e) => e && normaliser(nom || "").includes(e));
-  return { comptes, contacts, parUrl, parId, contactParUrl, contactParId, estExclu };
+  const personnesExclues = new Set((await requete<{ cle: string }>(`select cle from personnes_exclues`)).map((l) => l.cle));
+  return { comptes, contacts, parUrl, parId, contactParUrl, contactParId, estExclu, personnesExclues };
 }
 export type Referentiel = Awaited<ReturnType<typeof referentiel>>;
+
+// Équipe du client et de Flow Ops (Patrice, 28/10/2026) : leurs réactions et leurs messages ne sont pas de l'intention.
+const EQUIPE = /hirondo|flow ?ops/i;
+const publicIdDe = (url?: string | null) => (url || "").toLowerCase().match(/\/in\/([^/?#]+)/)?.[1] ?? null;
+/** Personne exclue des signaux : listée (identifiant public ou de membre) ou qui se présente comme de l'équipe. */
+export function personneExclue(ref: Referentiel, p: { public_id?: string | null; url?: string | null; linkedin_id?: string | null; titre?: string | null }) {
+  const pub = (p.public_id || publicIdDe(p.url) || "").toLowerCase();
+  return (pub && ref.personnesExclues.has(pub)) || (p.linkedin_id ? ref.personnesExclues.has(p.linkedin_id) : false) || EQUIPE.test(p.titre || "");
+}
 
 /** Compte de la base pour une position : adresse de la page, identifiant numérique, puis nom (le plus gros à égalité). */
 export function compteDe(p: Position, ref: Referentiel): Compte | null {
@@ -269,6 +279,7 @@ export async function interpreterEngageurs(items: Record<string, unknown>[], pos
     const compte = p ? compteDe(p, ref) : null;
     if (!compte || !p || compte.exclu) continue;
     const idPersonne = String(actor.id ?? "");
+    if (personneExclue(ref, { public_id: actor.publicIdentifier as string, url: actor.linkedinUrl as string, linkedin_id: idPersonne, titre: actor.headline as string })) continue;
     const url = actor.publicIdentifier ? `https://www.linkedin.com/in/${actor.publicIdentifier}` : (actor.linkedinUrl as string | undefined);
     const existant = ref.contactParId.get(idPersonne) ?? (url ? ref.contactParUrl.get(urlNormale(url)!) : undefined)
       ?? contactParNom(ref, compte.id, actor.firstName as string, actor.lastName as string);
