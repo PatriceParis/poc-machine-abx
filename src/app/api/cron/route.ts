@@ -26,6 +26,7 @@ async function dernier(nature: string): Promise<Date | null> {
 const depuis = (d: Date | null) => (d ? (Date.now() - d.getTime()) / 86400000 : Infinity);
 
 export async function GET(request: Request) {
+  const debut = Date.now();
   const secret = process.env.CRON_SECRET || "";
   const donne = (request.headers.get("authorization") || "").replace(/^Bearer /, "");
   if (!secret || !safeEqual(donne, secret)) return NextResponse.json({ ok: false }, { status: 401 });
@@ -40,17 +41,19 @@ export async function GET(request: Request) {
   if (forcer === "verifications") return NextResponse.json({ ok: true, verification, cascade });
 
   // ReachMCP, chaque jour : posts de Yannig dont les compteurs ont bougé, puis rapprochement des engageurs (gratuit,
-  // hors interrupteur des relevés Apify). Une panne de ReachMCP ne bloque pas le reste de la tâche.
-  const reach = !forcer || hebdo || forcer === "reach"
-    ? await relireReach(forcer === "reach" ? 240000 : 100000).catch((e: Error) => ({ erreur: String(e.message).slice(0, 200) }))
+  // hors interrupteur des relevés Apify). Lancé en dernier, dans le temps qui reste avant la limite de 300 s : une
+  // lecture interrompue reprend le lendemain. Une panne de ReachMCP ne bloque pas le reste de la tâche.
+  const lireReach = async (plafond: number) => (!forcer || hebdo || forcer === "reach") && Date.now() - debut < 230000
+    ? relireReach(Math.min(plafond, 260000 - (Date.now() - debut))).catch((e: Error) => ({ erreur: String(e.message).slice(0, 200) }))
     : null;
-  if (forcer === "reach") return NextResponse.json({ ok: true, reach });
+  if (forcer === "reach") return NextResponse.json({ ok: true, reach: await lireReach(240000) });
 
   const params = new Map((await requete<{ cle: string; valeur: unknown }>(`select cle, valeur from parametres`)).map((p) => [p.cle, p.valeur]));
-  const tache = (lances: string[]) => requete(`insert into releves (nature, statut, termine_le, detail) values ('tache', 'terminé', now(), $1::jsonb)`,
+  const tache = (lances: string[], reach: unknown) => requete(`insert into releves (nature, statut, termine_le, detail) values ('tache', 'terminé', now(), $1::jsonb)`,
     [JSON.stringify({ hebdo, lances, verification, cascade, reach })]);
   if (params.get("releves_actifs") !== true) {
-    await tache([]);
+    const reach = await lireReach(100000);
+    await tache([], reach);
     return NextResponse.json({ ok: true, lance: [], verification, cascade, reach, raison: "relevés coupés" });
   }
 
@@ -122,6 +125,7 @@ export async function GET(request: Request) {
       }
     }
   }
-  await tache(lances);
+  const reach = await lireReach(100000);
+  await tache(lances, reach);
   return NextResponse.json({ ok: true, lances, verification, cascade, reach });
 }

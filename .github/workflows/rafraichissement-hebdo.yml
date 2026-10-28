@@ -1,6 +1,7 @@
 # Mise à jour hebdomadaire de la machine à leads : chaque lundi à 5 h, heure de Paris, appelle /api/cron?forcer=hebdo
 # (prises de poste, offres d'emploi, engageurs des posts suivis, relecture mensuelle des décideurs quand elle est due,
-# vérification des emails). Les résultats des relevés Apify reviennent ensuite par webhook, en quelques minutes.
+# vérification des emails, puis posts de Yannig et leurs engageurs lus par ReachMCP). Les résultats des relevés Apify
+# reviennent ensuite par webhook, en quelques minutes ; les messages LinkedIn reçus arrivent par webhook ReachMCP à tout moment.
 #
 # GitHub ne planifie qu'en UTC : deux crons couvrent l'été (3 h UTC) et l'hiver (4 h UTC), et la première étape ne laisse
 # passer que celui qui correspond au décalage horaire de Paris du jour, même si GitHub le lance en retard.
