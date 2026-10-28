@@ -5,11 +5,12 @@ import { safeEqual } from "@/lib/auth";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { lireJeu } from "@/lib/apify";
 import { ecrire as ecrireFullEnrich, enrichirAlertes } from "@/lib/fullenrich";
+import { interpreterMessage } from "@/lib/reach";
 import { interpreterDecideurs, interpreterEngageurs, interpreterOffres, interpreterPostes, referentiel } from "@/lib/releves";
 
 // Réception des webhooks (Brevo, ReachMCP, formulaire du test, LinkedIn, Apify). Secret obligatoire,
 // dans l'en-tête x-cle ou le paramètre ?cle=. Tout est d'abord rangé tel quel dans evenements_bruts.
-// Seuls les relevés Apify sont interprétés ici, leur format ayant été lu sur de vraies sorties.
+// Sont interprétés ici les relevés Apify et les messages reçus par ReachMCP, leurs formats ayant été lus sur de vraies sorties.
 const SOURCES = new Set(["brevo", "reachmcp", "test", "linkedin", "apify", "fullenrich"]);
 
 // FullEnrich signe chaque envoi : HMAC-SHA1 du corps brut avec la clé API, en hexadécimal, en-tête X-Signature-SHA1.
@@ -40,6 +41,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ sou
     charge = JSON.parse(texte);
   } catch {
     charge = { texte };
+  }
+  if (source === "reachmcp") {
+    // Le texte d'un message privé n'est jamais gardé : seul compte le fait qu'une personne d'un compte cible ait écrit.
+    const data = { ...((charge.data as Record<string, unknown>) ?? {}) };
+    delete data.last_message_text;
+    await requete(`insert into evenements_bruts (source, charge, origine) values ('reachmcp', $1::jsonb, 'C')`, [JSON.stringify({ ...charge, data })]);
+    const nouveaux = charge.type === "message.received" ? await interpreterMessage(data).catch(() => 0) : 0;
+    return NextResponse.json({ ok: true, nouveaux });
   }
   if (source !== "apify") {
     await requete(`insert into evenements_bruts (source, charge, origine) values ($1, $2::jsonb, 'C')`, [source, JSON.stringify(charge)]);

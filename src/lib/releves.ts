@@ -4,10 +4,10 @@
 import { requete } from "@/lib/db";
 import { normaliser } from "@/lib/visites";
 
-type Compte = { id: number; nom: string; url: string | null; linkedin_id: string | null; effectif: number | null; exclu: boolean };
+export type Compte = { id: number; nom: string; url: string | null; linkedin_id: string | null; effectif: number | null; exclu: boolean };
 type Contact = { id: number; compte_id: number | null; url: string | null; linkedin_id: string | null; prenom: string | null; nom: string | null; poste: string | null; suivi: Record<string, unknown> | null };
 type Position = { title?: string; position?: string; companyName?: string; companyId?: string; companyLinkedinUrl?: string; current?: boolean; startedOn?: { month?: number | string; year?: number }; startDate?: { month?: number | string; year?: number }; company?: { industry?: string } };
-type Signal = { type: string; compte_id: number; contact_id: number | null; le: string; ref: string; detail: Record<string, unknown>; origine: "A" | "C" };
+export type Signal = { type: string; compte_id: number; contact_id: number | null; le: string; ref: string; detail: Record<string, unknown>; origine: "A" | "C" };
 
 const DECIDEUR = /\b(cmo|chief marketing|directeur.*marketing|directrice.*marketing|marketing director|director of marketing|head of marketing|vp marketing|directeur.*communication|directrice.*communication|chief brand|chief growth|head of growth)\b/i;
 // « Alternante CMO Support », « assistante de la directrice marketing » : le titre cite le rôle sans l'occuper.
@@ -53,7 +53,7 @@ export async function referentiel() {
   const estExclu = (nom?: string | null) => exclusions.some((e) => e && normaliser(nom || "").includes(e));
   return { comptes, contacts, parUrl, parId, contactParUrl, contactParId, estExclu };
 }
-type Referentiel = Awaited<ReturnType<typeof referentiel>>;
+export type Referentiel = Awaited<ReturnType<typeof referentiel>>;
 
 /** Compte de la base pour une position : adresse de la page, identifiant numérique, puis nom (le plus gros à égalité). */
 export function compteDe(p: Position, ref: Referentiel): Compte | null {
@@ -76,7 +76,7 @@ function contactParNom(ref: Referentiel, compteId: number, prenom?: string, nom?
   return ref.contacts.find((c) => c.compte_id === compteId && normaliser(`${c.prenom || ""} ${c.nom || ""}`) === cle) ?? null;
 }
 
-async function creerContact(compteId: number, d: { url?: string; linkedin_id?: string; prenom?: string; nom?: string; poste?: string }, origine: "A" | "C", ref: Referentiel): Promise<number> {
+export async function creerContact(compteId: number, d: { url?: string; linkedin_id?: string; prenom?: string; nom?: string; poste?: string }, origine: "A" | "C", ref: Referentiel): Promise<number> {
   const [l] = await requete<{ id: number }>(
     `insert into contacts (compte_id, url_linkedin, linkedin_id, prenom, nom, poste, fonction, origine)
      values ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -105,16 +105,16 @@ async function deplacerContact(contact: Contact, vers: Compte, poste: string, re
   contact.poste = poste || contact.poste;
 }
 
-export async function ecrireSignaux(signaux: Signal[]): Promise<number> {
+export async function ecrireSignaux(signaux: Signal[], source = "apify"): Promise<number> {
   if (!signaux.length) return 0;
   const r = await requete<{ id: number }>(
     `insert into signaux (type_code, compte_id, contact_id, survenu_le, source, ref_externe, detail, origine)
-     select v.t, v.c, v.ct, v.le, 'apify', v.r, v.d::jsonb, v.o::origine_donnee
+     select v.t, v.c, v.ct, v.le, $8, v.r, v.d::jsonb, v.o::origine_donnee
      from unnest($1::text[], $2::bigint[], $3::bigint[], $4::timestamptz[], $5::text[], $6::text[], $7::text[])
           as v(t, c, ct, le, r, d, o)
      on conflict (source, ref_externe) do nothing returning id`,
     [signaux.map((s) => s.type), signaux.map((s) => s.compte_id), signaux.map((s) => s.contact_id), signaux.map((s) => s.le),
-     signaux.map((s) => s.ref), signaux.map((s) => JSON.stringify(s.detail)), signaux.map((s) => s.origine)]);
+     signaux.map((s) => s.ref), signaux.map((s) => JSON.stringify(s.detail)), signaux.map((s) => s.origine), source]);
   return r.length;
 }
 

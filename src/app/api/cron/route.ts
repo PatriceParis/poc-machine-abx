@@ -5,14 +5,15 @@ import { safeEqual } from "@/lib/auth";
 import { ACTEURS, lancer } from "@/lib/apify";
 import { verifierEnAttente } from "@/lib/zerobounce";
 import { secondPassageEnAttente } from "@/lib/pipecorn";
+import { relireReach } from "@/lib/reach";
 
 // Deux déclenchements :
 //   ?forcer=hebdo  la mise à jour hebdomadaire, le lundi à 5 h heure de Paris (GitHub Actions, rafraichissement-hebdo.yml) :
 //                  prises de poste, offres d'emploi, engageurs des posts suivis, relecture des décideurs si un mois
 //                  s'est écoulé, vérification des emails et second passage d'enrichissement
-//   sans forcer    la tâche quotidienne de Vercel : vérification des emails, second passage, et engageurs des seuls
-//                  posts en période de relecture quotidienne (date « jusqu_au »)
-// Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|offres|engageurs|manquants|verifications
+//   sans forcer    la tâche quotidienne de Vercel : vérification des emails, second passage, posts de Yannig relus par
+//                  ReachMCP, et engageurs Apify des seuls posts en période de relecture quotidienne (date « jusqu_au »)
+// Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|offres|engageurs|manquants|verifications|reach
 // lance un relevé à la demande. Chaque passage est noté dans releves (nature « tache »).
 export const maxDuration = 300;
 
@@ -38,12 +39,19 @@ export async function GET(request: Request) {
   const cascade = enrichissement ? await secondPassageEnAttente(150000).catch(() => null) : null;
   if (forcer === "verifications") return NextResponse.json({ ok: true, verification, cascade });
 
+  // ReachMCP, chaque jour : posts de Yannig dont les compteurs ont bougé, puis rapprochement des engageurs (gratuit,
+  // hors interrupteur des relevés Apify). Une panne de ReachMCP ne bloque pas le reste de la tâche.
+  const reach = !forcer || hebdo || forcer === "reach"
+    ? await relireReach(forcer === "reach" ? 240000 : 100000).catch((e: Error) => ({ erreur: String(e.message).slice(0, 200) }))
+    : null;
+  if (forcer === "reach") return NextResponse.json({ ok: true, reach });
+
   const params = new Map((await requete<{ cle: string; valeur: unknown }>(`select cle, valeur from parametres`)).map((p) => [p.cle, p.valeur]));
   const tache = (lances: string[]) => requete(`insert into releves (nature, statut, termine_le, detail) values ('tache', 'terminé', now(), $1::jsonb)`,
-    [JSON.stringify({ hebdo, lances, verification, cascade })]);
+    [JSON.stringify({ hebdo, lances, verification, cascade, reach })]);
   if (params.get("releves_actifs") !== true) {
     await tache([]);
-    return NextResponse.json({ ok: true, lance: [], verification, cascade, raison: "relevés coupés" });
+    return NextResponse.json({ ok: true, lance: [], verification, cascade, reach, raison: "relevés coupés" });
   }
 
   const retour = (nature: string) => `${adressePublique(request)}/api/webhook/apify?cle=${encodeURIComponent(process.env.WEBHOOK_SECRET || "")}&nature=${nature}`;
@@ -73,7 +81,7 @@ export async function GET(request: Request) {
   }
 
   // Chaque semaine : offres d'emploi LinkedIn en marketing ops, CRM, ABM publiées en France depuis 7 jours.
-  // Préféré à ReachMCP : sans compte relié, et l'offre porte l'adresse de la page de l'entreprise, la clé du TAM.
+  // Préféré à ReachMCP : l'offre porte l'adresse de la page de l'entreprise, la clé du TAM, là où ReachMCP rend un identifiant numérique.
   if (forcer === "offres" || hebdo) {
     const entree = { keywords: params.get("offres_mots_cles"), location: "France", datePosted: "pastWeek", scrapeCompany: false, limitPerSource: 500 };
     await noter("offres", await lancer(ACTEURS.offres, entree, retour("offres"), PLAFONDS.offres), { entree });
@@ -115,5 +123,5 @@ export async function GET(request: Request) {
     }
   }
   await tache(lances);
-  return NextResponse.json({ ok: true, lances, verification, cascade });
+  return NextResponse.json({ ok: true, lances, verification, cascade, reach });
 }
