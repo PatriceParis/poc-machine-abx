@@ -31,9 +31,8 @@ function dateRelative(t?: string): Date {
 // « Head of Marketing @ Qonto », « Directrice marketing chez Alan », « Now: Trustly - Global Head of Marketing ».
 const MARQUEUR = /(?:@|\bchez\b|\bat\b|\bnow\s*:)\s*([^|·•,;\-–—(]+)/gi;
 const entreprisesDuTitre = (titre?: string | null) => [...(titre || "").matchAll(MARQUEUR)].map((m) => m[1].trim()).filter((n) => n.length >= 2);
-// Les fiches lues sont comptées (quota du compte relié) : seulement les gens du marketing qui ne se disent pas indépendants.
-const INDEPENDANT = /freelance|ind[ée]pendant|fractional|part[- ]?time|temps partag|embarqu|consultant|consulting|advisor|coach|formateur|trainer|mentor/i;
-const ficheUtile = (titre?: string | null) => !INDEPENDANT.test(titre || "") && (estDecideur(titre) || ["marketing", "growth"].includes(fonctionDuPoste(titre)));
+// Les fiches lues sont comptées (quota du compte relié) : seulement les gens du marketing (les freelances sont exclus avant).
+const ficheUtile = (titre?: string | null) => estDecideur(titre) || ["marketing", "growth"].includes(fonctionDuPoste(titre));
 
 /** Rapproche une personne d'un compte : contact déjà connu, employeur déjà lu, entreprise citée dans l'intitulé, puis
  *  lecture de sa fiche LinkedIn si le quota du jour le permet. */
@@ -141,7 +140,7 @@ export async function relireReach(budgetMs = 120000) {
   const debut = Date.now();
   const ctx = await contexte();
   const membres = await relireMembres(ctx);
-  const bilan = { posts: 0, relus: 0, engagements: 0, fiches: 0, nouveaux: 0, membres };
+  const bilan = { posts: 0, relus: 0, engagements: 0, fiches: 0, nouveaux: 0, retires: 0, membres };
   const quotaInitial = ctx.quota.reste;
   for (const auteur of ctx.auteurs) {
     const { posts } = await appel<{ posts: PostReach[] }>(`/linkedin/${ctx.compteReach}/user-posts?linkedin_id_or_url=${encodeURIComponent(auteur)}&count=20`);
@@ -181,12 +180,19 @@ export async function relireReach(budgetMs = 120000) {
      from reach_engagements e join reach_posts p on p.urn = e.post_urn
      where e.vu_le >= now() - interval '60 days' order by e.vu_le`);
   const signaux: Signal[] = [];
+  // Une personne exclue depuis (membre du client, freelance) perd les signaux déjà écrits à son nom.
+  const aRetirer: string[] = [];
   for (const l of lignes) {
+    const ref_ = `reach:${l.nature}:${l.post_urn}:${l.linkedin_id}`;
+    if (personneExclue(ctx.ref, { public_id: l.public_id, linkedin_id: l.linkedin_id, titre: l.titre })) { aRetirer.push(ref_); continue; }
     if (Date.now() - debut > budgetMs) break;
     const type = l.nature === "comment" ? "commentaire_post" : "engagement_post";
-    const s = await signalPour(l, type, new Date(l.le).toISOString(), `reach:${l.nature}:${l.post_urn}:${l.linkedin_id}`,
+    const s = await signalPour(l, type, new Date(l.le).toISOString(), ref_,
       { post: l.url, nature: l.nature === "comment" ? "commentaires" : "reactions" }, ctx).catch(() => null);
     if (s) signaux.push(s);
+  }
+  if (aRetirer.length) {
+    bilan.retires = (await requete(`delete from signaux where source = 'reachmcp' and ref_externe = any($1::text[]) returning 1`, [aRetirer])).length;
   }
   bilan.fiches = quotaInitial - ctx.quota.reste;
   bilan.nouveaux = await ecrireSignaux(signaux, "reachmcp");

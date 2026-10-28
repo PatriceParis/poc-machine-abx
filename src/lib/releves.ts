@@ -56,13 +56,17 @@ export async function referentiel() {
 }
 export type Referentiel = Awaited<ReturnType<typeof referentiel>>;
 
-// Équipe du client et de Flow Ops (Patrice, 28/10/2026) : leurs réactions et leurs messages ne sont pas de l'intention.
+// Équipe du client et de Flow Ops, et tous les profils freelance (Patrice, 28/10/2026) : membres du collectif ou pairs,
+// leurs réactions et leurs messages ne sont pas de l'intention d'achat.
 const EQUIPE = /hirondo|flow ?ops/i;
-const publicIdDe = (url?: string | null) => (url || "").toLowerCase().match(/\/in\/([^/?#]+)/)?.[1] ?? null;
-/** Personne exclue des signaux : listée (identifiant public ou de membre) ou qui se présente comme de l'équipe. */
+export const INDEPENDANT = /free[- ]?lance|ind[ée]pendant|independent|fractional|part[- ]?time|temps partag|temps partiel|embarqu|de transition|interim|intérim|consultant|consulting|advisor|coach|formateur|trainer|mentor|portage/i;
+const publicIdDe = (url?: string | null) => (url || "").match(/\/in\/([^/?#]+)/)?.[1] ?? null;
+const decoder = (t: string) => { try { return decodeURIComponent(t); } catch { return t; } };
+/** Personne exclue des signaux : listée (identifiant public ou de membre), de l'équipe ou freelance d'après son intitulé. */
 export function personneExclue(ref: Referentiel, p: { public_id?: string | null; url?: string | null; linkedin_id?: string | null; titre?: string | null }) {
-  const pub = (p.public_id || publicIdDe(p.url) || "").toLowerCase();
-  return (pub && ref.personnesExclues.has(pub)) || (p.linkedin_id ? ref.personnesExclues.has(p.linkedin_id) : false) || EQUIPE.test(p.titre || "");
+  const pub = decoder(p.public_id || publicIdDe(p.url) || "").toLowerCase();
+  return (pub && ref.personnesExclues.has(pub)) || (p.linkedin_id ? ref.personnesExclues.has(p.linkedin_id) : false)
+    || EQUIPE.test(p.titre || "") || INDEPENDANT.test(p.titre || "");
 }
 
 /** Compte de la base pour une position : adresse de la page, identifiant numérique, puis nom (le plus gros à égalité). */
