@@ -5,6 +5,7 @@
 //   messages  un message reçu d'une personne d'un compte de la base (reponse_linkedin), annoncé par webhook
 // Les visiteurs du profil exigent LinkedIn Premium : sans abonnement, la liste revient vide.
 import { requete } from "@/lib/db";
+import { normaliser } from "@/lib/visites";
 import { compteDe, creerContact, ecrireSignaux, estDecideur, fonctionDuPoste, personneExclue, referentiel, urlNormale, type Compte, type Referentiel, type Signal } from "@/lib/releves";
 
 type PostReach = { post_urn: string; post_url: string; published_at_relative?: string; total_likes: number; total_comments: number };
@@ -30,7 +31,13 @@ function dateRelative(t?: string): Date {
 
 // « Head of Marketing @ Qonto », « Directrice marketing chez Alan », « Now: Trustly - Global Head of Marketing ».
 const MARQUEUR = /(?:@|\bchez\b|\bat\b|\bnow\s*:)\s*([^|·•,;\-–—(]+)/gi;
-const entreprisesDuTitre = (titre?: string | null) => [...(titre || "").matchAll(MARQUEUR)].map((m) => m[1].trim()).filter((n) => n.length >= 2);
+// « ex CMO @Payplug », « former Head of Marketing at Alan » : l'entreprise est passée, la personne n'y est plus.
+const ANCIEN = /\b(ex|former|formerly|ancien|ancienne|anciennement|previously)\b/i;
+const segments = (titre?: string | null) => (titre || "").split(/\s[-–—]\s|[|·•;]/);
+const entreprisesDuTitre = (titre?: string | null) => segments(titre).filter((s) => !ANCIEN.test(s))
+  .flatMap((s) => [...s.matchAll(MARQUEUR)].map((m) => m[1].trim())).filter((n) => n.length >= 2);
+const aQuitte = (titre: string | null | undefined, compte: Compte) =>
+  segments(titre).some((s) => ANCIEN.test(s) && normaliser(compte.nom).length >= 4 && normaliser(s).includes(normaliser(compte.nom)));
 // Les fiches lues sont comptées (quota du compte relié) : seulement les gens du marketing (les freelances sont exclus avant).
 const ficheUtile = (titre?: string | null) => estDecideur(titre) || ["marketing", "growth"].includes(fonctionDuPoste(titre));
 
@@ -41,8 +48,9 @@ async function rapprocher(p: Personne, ref: Referentiel, employeurs: Map<string,
   const url = p.public_id ? `https://www.linkedin.com/in/${p.public_id}` : null;
   const connu = ref.contactParId.get(p.linkedin_id) ?? (url ? ref.contactParUrl.get(urlNormale(url)!) : undefined);
   if (connu?.compte_id) {
+    // Contact de la base parti depuis : son intitulé dit « ex … @compte », il ne parle plus pour ce compte.
     const compte = ref.comptes.find((c) => c.id === connu.compte_id);
-    return compte ? { compte, contactId: connu.id } : null;
+    return compte && !aQuitte(p.titre, compte) ? { compte, contactId: connu.id } : null;
   }
   let employeur = employeurs.get(p.linkedin_id);
   if (!employeur) {
@@ -180,7 +188,7 @@ export async function relireReach(budgetMs = 120000) {
      from reach_engagements e join reach_posts p on p.urn = e.post_urn
      where e.vu_le >= now() - interval '60 days' order by e.vu_le`);
   const signaux: Signal[] = [];
-  // Une personne exclue depuis (membre du client, freelance) perd les signaux déjà écrits à son nom.
+  // Une personne exclue depuis (membre du client, freelance) ou partie de son compte perd les signaux déjà écrits.
   const aRetirer: string[] = [];
   for (const l of lignes) {
     const ref_ = `reach:${l.nature}:${l.post_urn}:${l.linkedin_id}`;
@@ -189,7 +197,8 @@ export async function relireReach(budgetMs = 120000) {
     const type = l.nature === "comment" ? "commentaire_post" : "engagement_post";
     const s = await signalPour(l, type, new Date(l.le).toISOString(), ref_,
       { post: l.url, nature: l.nature === "comment" ? "commentaires" : "reactions" }, ctx).catch(() => null);
-    if (s) signaux.push(s);
+    // Plus de signal pour cet engagement (personne partie du compte, compte exclu) : l'ancien est retiré.
+    if (s) signaux.push(s); else aRetirer.push(ref_);
   }
   if (aRetirer.length) {
     bilan.retires = (await requete(`delete from signaux where source = 'reachmcp' and ref_externe = any($1::text[]) returning 1`, [aRetirer])).length;
