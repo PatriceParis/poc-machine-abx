@@ -118,3 +118,13 @@ export function Pagination({ page, total, base, params }: { page: number; total:
 export function Vide({ texte }: { texte: string }) {
   return <p className="px-5 py-10 text-center text-sm text-texte-2">{texte}</p>;
 }
+
+export function Tuile({ titre, valeur, aide, accent }: { titre: string; valeur: string; aide: string; accent?: boolean }) {
+  return (
+    <div className={clsx("rounded-xl border px-4 py-3.5 flex flex-col gap-1", accent ? "bg-accent text-white border-accent" : "bg-surface border-bord")}>
+      <span className={clsx("text-xs", accent ? "text-white/85 font-medium" : "text-texte-2")}>{titre}</span>
+      <span className={clsx("chiffres text-3xl", accent && "font-semibold")}>{valeur}</span>
+      <span className={clsx("text-xs", accent ? "text-white/75" : "text-texte-3")}>{aide}</span>
+    </div>
+  );
+}

@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import clsx from "clsx";
-import { Building2, Gauge, ListChecks, LogOut, Users, Workflow, Zap } from "lucide-react";
+import { Building2, Gauge, Globe, ListChecks, LogOut, Users, Workflow, Zap } from "lucide-react";
 
 export const PAGES = [
   { href: "/", nom: "Cockpit", icone: Gauge },
   { href: "/comptes", nom: "Comptes", icone: Building2 },
   { href: "/signaux", nom: "Signaux", icone: Zap },
   { href: "/contacts", nom: "Contacts", icone: Users },
+  { href: "/visites", nom: "Visites", icone: Globe },
   { href: "/workflow", nom: "Workflow", icone: Workflow },
   { href: "/grille", nom: "Grille", icone: ListChecks },
 ];

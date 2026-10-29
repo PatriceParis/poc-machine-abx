@@ -49,7 +49,7 @@ function motsSignifiants(t: string): string[] {
 }
 
 // Réseaux d'opérateurs et d'hébergeurs : une visite qui en vient ne désigne aucune entreprise.
-const OPERATEURS = /orange|sfr|free sas|proxad|bouygues|numericable|completel|ovh|amazon|google|microsoft|cloudflare|akamai|digitalocean|hetzner|scaleway|online s\.a\.s|iliad|vodafone|telefonica|deutsche telekom|swisscom|proximus|zscaler|netskope|apple|m247|leaseweb|choopa|vultr|linode/i;
+export const OPERATEURS = /orange|sfr|free sas|proxad|bouygues|numericable|completel|ovh|amazon|google|microsoft|cloudflare|akamai|digitalocean|hetzner|scaleway|online s\.a\.s|iliad|vodafone|telefonica|deutsche telekom|swisscom|proximus|zscaler|netskope|apple|m247|leaseweb|choopa|vultr|linode/i;
 
 export type CompteCandidat = { id: number; nom: string; domaine: string | null; effectif: number | null };
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import clsx from "clsx";
 import { cockpit } from "@/lib/donnees";
 import { fDate, fDateHeure, fNombre } from "@/lib/format";
-import { Action, BarreScore, Carte, Engagement, Palier, TitreSection, Vide } from "@/components/ui";
+import { Action, BarreScore, Carte, Engagement, Palier, TitreSection, Tuile, Vide } from "@/components/ui";
 
 export const metadata = { title: "Cockpit Hirondo ABX" };
 
@@ -11,16 +11,6 @@ const ACTIONS_CASE: Record<string, Record<string, string>> = {
   B: { chaud: "Transmettre", tiede: "Reciblage", froid: "À surveiller" },
   C: { chaud: "À surveiller", tiede: "À surveiller", froid: "À surveiller" },
 };
-
-function Tuile({ titre, valeur, aide, accent }: { titre: string; valeur: string; aide: string; accent?: boolean }) {
-  return (
-    <div className={clsx("rounded-xl border px-4 py-3.5 flex flex-col gap-1", accent ? "bg-accent text-white border-accent" : "bg-surface border-bord")}>
-      <span className={clsx("text-xs", accent ? "text-white/85 font-medium" : "text-texte-2")}>{titre}</span>
-      <span className={clsx("chiffres text-3xl", accent && "font-semibold")}>{valeur}</span>
-      <span className={clsx("text-xs", accent ? "text-white/75" : "text-texte-3")}>{aide}</span>
-    </div>
-  );
-}
 
 export default async function Cockpit() {
   const { chiffres: c, matrice, top, actions, sources, familles30 } = await cockpit();

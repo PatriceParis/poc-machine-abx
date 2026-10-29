@@ -1,4 +1,5 @@
 import { requete } from "@/lib/db";
+import { OPERATEURS } from "@/lib/visites";
 
 // Toutes les lectures de la base. Les vues score_comptes et signaux_actifs font le calcul ; ici on ne fait que lire.
 
@@ -205,4 +206,47 @@ export async function sequences(): Promise<Sequence[]> {
       concernes: c ?? { contacts: 0, email_valide: 0, linkedin: 0 },
     };
   }));
+}
+
+// Visites du site suivi (script /t.js) : le réseau d'origine de chaque visite, lu par IPinfo Lite, dit si elle vient
+// d'une entreprise (son propre réseau), d'un opérateur ou d'un hébergeur (box, mobile, VPN : personne n'est reconnu),
+// ou d'un réseau inconnu. Sert à juger ce que vaut l'identification par adresse IP.
+export type NatureReseau = "entreprise" | "operateur" | "inconnu";
+
+export async function visitesSite(jours: number) {
+  const base = `with v as (
+      select e.recu_le, e.charge->>'visiteur' as visiteur, e.charge->>'page' as page, e.charge->>'referent' as referent,
+             e.charge->'reseau'->>'nom' as reseau, e.charge->'reseau'->>'domaine' as domaine, e.charge->'reseau'->>'pays' as pays,
+             (e.charge->>'compte_id')::bigint as compte_id, e.charge->>'rapprochement' as par,
+             case when e.charge->'reseau'->>'nom' is null then 'inconnu'
+                  when e.charge->'reseau'->>'nom' ~* $2 then 'operateur' else 'entreprise' end as nature
+      from evenements_bruts e where e.source = 'site' and e.recu_le >= now() - make_interval(days => $1))`;
+  const params = [jours, OPERATEURS.source];
+  const [chiffres] = await requete<Record<string, number | string | null>>(`${base}
+    select count(*)::int as pages_vues, count(distinct visiteur)::int as visiteurs,
+           (count(distinct visiteur) filter (where nature = 'entreprise'))::int as visiteurs_entreprise,
+           (count(distinct coalesce(domaine, reseau)) filter (where nature = 'entreprise'))::int as entreprises,
+           count(distinct compte_id)::int as comptes,
+           (count(distinct visiteur) filter (where compte_id is not null))::int as visiteurs_comptes,
+           (count(distinct visiteur) filter (where nature = 'operateur'))::int as visiteurs_operateur,
+           (count(distinct visiteur) filter (where nature = 'inconnu'))::int as visiteurs_inconnus,
+           max(recu_le) as derniere
+    from v`, params);
+  const entreprises = await requete<{ reseau: string; domaine: string | null; pays: string | null; pages_vues: number; visiteurs: number;
+    derniere: string; pages: string[]; compte_id: number | null; par: string | null; compte: string | null; palier: string | null }>(`${base}
+    select x.*, c.nom as compte, s.palier from (
+      select reseau, domaine, max(pays) as pays, count(*)::int as pages_vues, count(distinct visiteur)::int as visiteurs,
+             max(recu_le) as derniere, (array_agg(distinct page))[1:4] as pages, max(compte_id)::int as compte_id, max(par) as par
+      from v where nature = 'entreprise' group by reseau, domaine) x
+    left join comptes c on c.id = x.compte_id
+    left join score_comptes s on s.compte_id = x.compte_id
+    order by (x.compte_id is null), x.visiteurs desc, x.pages_vues desc limit 100`, params);
+  const autres = await requete<{ reseau: string; nature: NatureReseau; visiteurs: number; pages_vues: number }>(`${base}
+    select coalesce(reseau, 'Réseau non trouvé') as reseau, nature, count(distinct visiteur)::int as visiteurs, count(*)::int as pages_vues
+    from v where nature <> 'entreprise' group by 1, 2 order by 3 desc, 4 desc limit 12`, params);
+  const recentes = await requete<{ recu_le: string; page: string; referent: string | null; reseau: string | null; domaine: string | null;
+    nature: NatureReseau; compte_id: number | null; compte: string | null }>(`${base}
+    select v.recu_le, v.page, v.referent, v.reseau, v.domaine, v.nature, v.compte_id::int as compte_id, c.nom as compte
+    from v left join comptes c on c.id = v.compte_id order by v.recu_le desc limit 50`, params);
+  return { chiffres, entreprises, autres, recentes };
 }
