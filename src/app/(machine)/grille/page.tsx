@@ -11,7 +11,7 @@ const SOURCE: Record<string, string> = {
   membre_hirondo_en_mission: "CRM Notion Hirondo", contact_dormant_crm: "CRM Notion Hirondo",
   nouveau_decideur_marketing: "Apify, recherche mensuelle et presse", depart_decideur_marketing: "Apify, relecture mensuelle",
   champion_arrive: "Apify, relecture des profils engagés", recrutement_marketing_ops: "Apify, offres LinkedIn",
-  visite_site: "Script du site et IPinfo Lite", visite_page_cle: "Script du site et IPinfo Lite", visites_repetees: "Script du site et IPinfo Lite",
+  visite_site: "Script du site (IPinfo Lite) et Leadfeeder", visite_page_cle: "Script du site (IPinfo Lite) et Leadfeeder", visites_repetees: "Script du site (IPinfo Lite) et Leadfeeder",
   commentaire_post: "ReachMCP, posts de Yannig relus chaque jour", engagement_post: "ReachMCP, posts de Yannig relus chaque jour", engagement_pairs: "Apify, engageurs des posts",
   visite_profil: "ReachMCP, avec LinkedIn Premium", reponse_linkedin: "ReachMCP, messages reçus", test_complete: "Formulaire du test", test_profil_outils: "Formulaire du test",
   formulaire_natif: "API LinkedIn Ads", video_50: "API LinkedIn Ads", entreprise_engagee_pub: "API LinkedIn Ads",

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requete } from "@/lib/db";
-import { PAGES_CLES, empreinteIp, rapprocher, reseauDeIp, type CompteCandidat } from "@/lib/visites";
+import { empreinteIp, rapprocher, reseauDeIp, signalerVisite, type CompteCandidat } from "@/lib/visites";
 
 // Réception d'une visite du site suivi, envoyée par /t.js. Aucun cookie. L'adresse IP sert à trouver
 // le réseau d'origine puis n'est conservée que sous forme d'empreinte. Origine C : donnée de campagne.
@@ -52,41 +52,12 @@ export async function POST(request: Request) {
   const reseau = await reseauDeIp(ip);
   const lien = reseau ? rapprocher(reseau, await comptes()) : null;
   const visiteur = await empreinteIp(ip);
-  const maintenant = new Date().toISOString();
-  const jour = maintenant.slice(0, 10);
 
   await requete(
     `insert into evenements_bruts (source, charge, origine, traite) values ('site', $1::jsonb, 'C', true)`,
     [JSON.stringify({ page, referent: corps.ref || null, visiteur, reseau, compte_id: lien?.compte.id ?? null, rapprochement: lien?.par ?? null })],
   );
 
-  if (lien) {
-    const id = lien.compte.id;
-    const detail = JSON.stringify({ page, reseau: reseau?.nom, par: lien.par });
-    await requete(
-      `insert into signaux (type_code, compte_id, survenu_le, source, ref_externe, detail, origine)
-       values ('visite_site', $1, $2, 'site', $3, $4::jsonb, 'C') on conflict (source, ref_externe) do nothing`,
-      [id, maintenant, `site:${id}:${jour}`, detail],
-    );
-    if (PAGES_CLES.test(page)) {
-      await requete(
-        `insert into signaux (type_code, compte_id, survenu_le, source, ref_externe, detail, origine)
-         values ('visite_page_cle', $1, $2, 'site', $3, $4::jsonb, 'C') on conflict (source, ref_externe) do nothing`,
-        [id, maintenant, `site:${id}:cle:${jour}`, detail],
-      );
-    }
-    const jours = await requete<{ n: number }>(
-      `select count(distinct date_trunc('day', survenu_le))::int as n from signaux
-       where compte_id = $1 and type_code = 'visite_site' and survenu_le >= now() - interval '30 days'`,
-      [id],
-    );
-    if ((jours[0]?.n ?? 0) >= 3) {
-      await requete(
-        `insert into signaux (type_code, compte_id, survenu_le, source, ref_externe, detail, origine)
-         values ('visites_repetees', $1, $2, 'site', $3, '{}'::jsonb, 'C') on conflict (source, ref_externe) do nothing`,
-        [id, maintenant, `site:${id}:repetees:${jour.slice(0, 7)}`],
-      );
-    }
-  }
+  if (lien) await signalerVisite(lien.compte.id, new Date().toISOString(), [page], { page, reseau: reseau?.nom, par: lien.par });
   return new NextResponse(null, { status: 204, headers: cors });
 }

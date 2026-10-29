@@ -31,7 +31,7 @@ export const SOURCES = [
   { cle: "pharow", nom: "Base de ciblage Pharow", detail: "comptes, contacts et adéquation", nature: "Import", types: [] as string[], evenements: null as string | null },
   { cle: "postes", nom: "Prises de poste et départs", detail: "Apify, relevé mensuel des décideurs", nature: "Machine", types: ["nouveau_decideur_marketing", "depart_decideur_marketing", "champion_arrive"], evenements: null },
   { cle: "engageurs", nom: "Engageurs des posts LinkedIn", detail: "ReachMCP chaque jour pour les posts de Yannig, Apify pour les posts des pairs", nature: "Machine", types: ["engagement_post", "commentaire_post", "engagement_pairs"], evenements: "apify" },
-  { cle: "site", nom: "Visites de hirondo.co", detail: "script maison et IPinfo Lite", nature: "Machine", types: ["visite_site", "visite_page_cle", "visites_repetees"], evenements: "site" },
+  { cle: "site", nom: "Visites de hirondo.co", detail: "script maison et IPinfo Lite, Leadfeeder relevé chaque jour", nature: "Machine", types: ["visite_site", "visite_page_cle", "visites_repetees"], evenements: "site" },
   { cle: "offres", nom: "Offres d'emploi marketing ops", detail: "Apify, relevé hebdomadaire", nature: "Machine", types: ["recrutement_marketing_ops"], evenements: null },
   { cle: "test", nom: "Test de maturité ABM", detail: "formulaire, webhook", nature: "Webhook", types: ["test_complete", "test_profil_outils"], evenements: "test" },
   { cle: "linkedin", nom: "LinkedIn Ads", detail: "formulaires, vidéo, entreprises engagées", nature: "API", types: ["formulaire_natif", "video_50", "entreprise_engagee_pub"], evenements: "linkedin" },
@@ -249,4 +249,36 @@ export async function visitesSite(jours: number) {
     select v.recu_le, v.page, v.referent, v.reseau, v.domaine, v.nature, v.compte_id::int as compte_id, c.nom as compte
     from v left join comptes c on c.id = v.compte_id order by v.recu_le desc limit 50`, params);
   return { chiffres, entreprises, autres, recentes };
+}
+
+// Leadfeeder, relevé chaque jour, face à IPinfo Lite sur la même période : une entreprise est « aussi vue par IPinfo »
+// quand IPinfo a rattaché une visite au même compte, ou a vu un réseau au même domaine.
+export async function visitesLeadfeeder(jours: number) {
+  const base = `with l as (select * from visites_leadfeeder where debut >= now() - make_interval(days => $1)),
+    ip as (select distinct (e.charge->>'compte_id')::bigint as compte_id, lower(e.charge->'reseau'->>'domaine') as domaine
+           from evenements_bruts e where e.source = 'site' and e.recu_le >= now() - make_interval(days => $1)
+             and e.charge->'reseau'->>'nom' is not null and not (e.charge->'reseau'->>'nom' ~* $2))`;
+  const params = [jours, OPERATEURS.source];
+  const [chiffres] = await requete<Record<string, number | string | null>>(`${base}
+    select count(*)::int as visites, count(distinct coalesce(domaine, entreprise))::int as entreprises,
+           count(distinct compte_id)::int as comptes,
+           (count(distinct compte_id) filter (where compte_id in (select compte_id from ip)))::int as comptes_deux,
+           (select count(distinct compte_id)::int from ip) as comptes_ipinfo,
+           (select min(debut) from visites_leadfeeder) as premiere, (select max(lu_le) from visites_leadfeeder) as releve
+    from l`, params);
+  const entreprises = await requete<{ entreprise: string | null; domaine: string | null; pays: string | null; effectif: number | null;
+    visites: number; derniere: string; pages: string[] | null; compte_id: number | null; par: string | null; compte: string | null;
+    palier: string | null; vue_ipinfo: boolean }>(`${base}
+    select x.*, c.nom as compte, s.palier,
+           exists (select 1 from ip where (x.compte_id is not null and ip.compte_id = x.compte_id)
+                                       or (x.domaine is not null and ip.domaine = x.domaine)) as vue_ipinfo
+    from (select l.entreprise, l.domaine, max(l.pays) as pays, max(l.effectif) as effectif, count(distinct l.id)::int as visites,
+                 max(l.debut) as derniere, (array_agg(distinct p.page) filter (where p.page is not null))[1:4] as pages,
+                 max(l.compte_id)::int as compte_id, max(l.rapprochement) as par
+          from l left join lateral unnest(l.pages) as p(page) on true
+          group by l.entreprise, l.domaine) x
+    left join comptes c on c.id = x.compte_id
+    left join score_comptes s on s.compte_id = x.compte_id
+    order by (x.compte_id is null), x.visites desc, x.derniere desc limit 100`, params);
+  return { chiffres, entreprises };
 }

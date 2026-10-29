@@ -6,14 +6,15 @@ import { ACTEURS, lancer } from "@/lib/apify";
 import { verifierEnAttente } from "@/lib/zerobounce";
 import { secondPassageEnAttente } from "@/lib/pipecorn";
 import { relireReach } from "@/lib/reach";
+import { relireLeadfeeder } from "@/lib/leadfeeder";
 
 // Deux déclenchements :
 //   ?forcer=hebdo  la mise à jour hebdomadaire, le lundi à 5 h heure de Paris (GitHub Actions, rafraichissement-hebdo.yml) :
 //                  prises de poste, offres d'emploi, engageurs des posts suivis, relecture des décideurs si un mois
 //                  s'est écoulé, vérification des emails et second passage d'enrichissement
-//   sans forcer    la tâche quotidienne de Vercel : vérification des emails, second passage, posts de Yannig relus par
-//                  ReachMCP, et engageurs Apify des seuls posts en période de relecture quotidienne (date « jusqu_au »)
-// Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|offres|engageurs|manquants|verifications|reach
+//   sans forcer    la tâche quotidienne de Vercel : vérification des emails, second passage, visites Leadfeeder, posts de
+//                  Yannig relus par ReachMCP, et engageurs Apify des seuls posts en période de relecture quotidienne (date « jusqu_au »)
+// Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|offres|engageurs|manquants|verifications|leadfeeder|reach
 // lance un relevé à la demande. Chaque passage est noté dans releves (nature « tache »).
 export const maxDuration = 300;
 
@@ -40,6 +41,12 @@ export async function GET(request: Request) {
   const cascade = enrichissement ? await secondPassageEnAttente(150000).catch(() => null) : null;
   if (forcer === "verifications") return NextResponse.json({ ok: true, verification, cascade });
 
+  // Leadfeeder, chaque jour : visites du site reconnues par sa base d'entreprises (gratuit, quelques secondes).
+  const leadfeeder = !forcer || hebdo || forcer === "leadfeeder"
+    ? await relireLeadfeeder().catch((e: Error) => ({ erreur: String(e.message).slice(0, 200) }))
+    : null;
+  if (forcer === "leadfeeder") return NextResponse.json({ ok: true, leadfeeder });
+
   // ReachMCP, chaque jour : posts de Yannig dont les compteurs ont bougé, puis rapprochement des engageurs (gratuit,
   // hors interrupteur des relevés Apify). Lancé en dernier, dans le temps qui reste avant la limite de 300 s : une
   // lecture interrompue reprend le lendemain. Une panne de ReachMCP ne bloque pas le reste de la tâche.
@@ -50,11 +57,11 @@ export async function GET(request: Request) {
 
   const params = new Map((await requete<{ cle: string; valeur: unknown }>(`select cle, valeur from parametres`)).map((p) => [p.cle, p.valeur]));
   const tache = (lances: string[], reach: unknown) => requete(`insert into releves (nature, statut, termine_le, detail) values ('tache', 'terminé', now(), $1::jsonb)`,
-    [JSON.stringify({ hebdo, lances, verification, cascade, reach })]);
+    [JSON.stringify({ hebdo, lances, verification, cascade, leadfeeder, reach })]);
   if (params.get("releves_actifs") !== true) {
     const reach = await lireReach(100000);
     await tache([], reach);
-    return NextResponse.json({ ok: true, lance: [], verification, cascade, reach, raison: "relevés coupés" });
+    return NextResponse.json({ ok: true, lance: [], verification, cascade, leadfeeder, reach, raison: "relevés coupés" });
   }
 
   const retour = (nature: string) => `${adressePublique(request)}/api/webhook/apify?cle=${encodeURIComponent(process.env.WEBHOOK_SECRET || "")}&nature=${nature}`;
@@ -127,5 +134,5 @@ export async function GET(request: Request) {
   }
   const reach = await lireReach(100000);
   await tache(lances, reach);
-  return NextResponse.json({ ok: true, lances, verification, cascade, reach });
+  return NextResponse.json({ ok: true, lances, verification, cascade, leadfeeder, reach });
 }
