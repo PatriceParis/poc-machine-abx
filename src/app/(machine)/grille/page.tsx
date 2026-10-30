@@ -8,7 +8,8 @@ export const metadata = { title: "Grille · Cockpit Hirondo ABX" };
 const SOURCE: Record<string, string> = {
   taille_1000: "Base Pharow", taille_500: "Base Pharow", taille_250: "Base Pharow", secteur_jumeau: "Base Pharow",
   secteur_coeur: "Base Pharow", decideur_identifie: "Base Pharow, puis surveillance", moins_de_50: "Base Pharow", hors_france: "Base Pharow",
-  membre_hirondo_en_mission: "CRM Notion Hirondo", contact_dormant_crm: "CRM Notion Hirondo",
+  membre_hirondo_en_mission: "CRM Notion Hirondo, chaque lundi : mission gagnée, dernier contact depuis moins de 12 mois",
+  contact_dormant_crm: "CRM Notion Hirondo, chaque lundi : opportunité perdue ou reportée, sans contact depuis 90 jours, hors mauvais ressenti ou hors sujet",
   nouveau_decideur_marketing: "Apify, recherche mensuelle et presse", depart_decideur_marketing: "Apify, relecture mensuelle",
   champion_arrive: "Apify, relecture des profils engagés", recrutement_marketing_ops: "Apify, offres LinkedIn",
   visite_site: "Script du site (IPinfo Lite) et Leadfeeder", visite_page_cle: "Script du site (IPinfo Lite) et Leadfeeder", visites_repetees: "Script du site (IPinfo Lite) et Leadfeeder",
