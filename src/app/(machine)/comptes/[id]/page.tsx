@@ -53,6 +53,7 @@ export default async function FicheCompte({ params }: { params: Promise<{ id: st
         ))}
       </div>
       {c.exclu && <p className="text-sm text-alerte">Compte exclu : {c.motif_exclusion}</p>}
+      {c.pipeline_hirondo && <p className="text-sm font-medium">Déjà dans le pipeline Hirondo : opportunité au statut « {c.pipeline_hirondo} » dans le CRM Notion. Ne pas démarcher en parallèle.</p>}
       {c.lead_direct && <p className="text-sm font-medium text-accent-fort">Lead direct : test de maturité complété ou formulaire LinkedIn rempli, à contacter tout de suite.</p>}
       <BarreScore adequation={c.adequation} chaleur={c.chaleur} score={c.score} />
 

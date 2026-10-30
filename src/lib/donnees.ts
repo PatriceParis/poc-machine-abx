@@ -107,8 +107,8 @@ export async function listeComptes(f: FiltresComptes) {
 }
 
 export async function ficheCompte(id: number) {
-  const [compte] = await requete<LigneCompte & { site: string | null; url_linkedin: string | null; exclu: boolean; motif_exclusion: string | null; destinataire: string | null; a_transmettre: boolean; lead_direct: boolean }>(
-    `select ${COLONNES_COMPTE}, s.site, s.url_linkedin, s.exclu, s.motif_exclusion, s.destinataire, s.a_transmettre, s.lead_direct
+  const [compte] = await requete<LigneCompte & { site: string | null; url_linkedin: string | null; exclu: boolean; motif_exclusion: string | null; destinataire: string | null; a_transmettre: boolean; lead_direct: boolean; pipeline_hirondo: string | null }>(
+    `select ${COLONNES_COMPTE}, s.site, s.url_linkedin, s.exclu, s.motif_exclusion, s.destinataire, s.a_transmettre, s.lead_direct, s.pipeline_hirondo
      from score_comptes s where s.compte_id = $1`, [id]);
   if (!compte) return null;
   const signaux = await requete<{ id: number; type_code: string; libelle: string; famille: string; points: number; expire_jours: number | null; survenu_le: string; source: string; detail: Record<string, unknown>; contact: string | null; contact_id: number | null; compte_contact: number | null; actif: boolean }>(

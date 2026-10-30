@@ -38,7 +38,7 @@ export default async function Comptes({ searchParams }: { searchParams: Promise<
         <label className="sr-only" htmlFor="action">Action</label>
         <select id="action" name="action" defaultValue={filtres.action} className={classeChamp}>
           <option value="">Toutes les actions</option>
-          {["Transmettre", "Alerte nouveau décideur", "Reciblage et contenu", "Audience de comptes", "Reciblage", "À surveiller"].map((a) => <option key={a} value={a}>{a}</option>)}
+          {["Transmettre", "Alerte nouveau décideur", "Reciblage et contenu", "Audience de comptes", "Reciblage", "À surveiller", "Déjà dans le pipeline Hirondo"].map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
         {filtres.traiter === "1" && <input type="hidden" name="traiter" value="1" />}
         <label className="sr-only" htmlFor="activite">Activité</label>

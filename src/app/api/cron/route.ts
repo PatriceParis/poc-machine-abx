@@ -7,14 +7,15 @@ import { verifierEnAttente } from "@/lib/zerobounce";
 import { secondPassageEnAttente } from "@/lib/pipecorn";
 import { relireReach } from "@/lib/reach";
 import { relireLeadfeeder } from "@/lib/leadfeeder";
+import { relireCrm } from "@/lib/crm";
 
 // Deux déclenchements :
 //   ?forcer=hebdo  la mise à jour hebdomadaire, le lundi à 5 h heure de Paris (GitHub Actions, rafraichissement-hebdo.yml) :
 //                  prises de poste, offres d'emploi, engageurs des posts suivis, relecture des décideurs si un mois
-//                  s'est écoulé, vérification des emails et second passage d'enrichissement
+//                  s'est écoulé, CRM Notion de Hirondo, vérification des emails et second passage d'enrichissement
 //   sans forcer    la tâche quotidienne de Vercel : vérification des emails, second passage, visites Leadfeeder, posts de
 //                  Yannig relus par ReachMCP, et engageurs Apify des seuls posts en période de relecture quotidienne (date « jusqu_au »)
-// Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|offres|engageurs|manquants|verifications|leadfeeder|reach
+// Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|offres|engageurs|manquants|verifications|leadfeeder|crm|reach
 // lance un relevé à la demande. Chaque passage est noté dans releves (nature « tache »).
 export const maxDuration = 300;
 
@@ -47,6 +48,10 @@ export async function GET(request: Request) {
     : null;
   if (forcer === "leadfeeder") return NextResponse.json({ ok: true, leadfeeder });
 
+  // CRM Notion de Hirondo, chaque semaine : missions gagnées, opportunités perdues ou en cours, au niveau du compte.
+  const crm = hebdo || forcer === "crm" ? await relireCrm().catch((e: Error) => ({ erreur: String(e.message).slice(0, 200) })) : null;
+  if (forcer === "crm") return NextResponse.json({ ok: true, crm });
+
   // ReachMCP, chaque jour : posts de Yannig dont les compteurs ont bougé, puis rapprochement des engageurs (gratuit,
   // hors interrupteur des relevés Apify). Lancé en dernier, dans le temps qui reste avant la limite de 300 s : une
   // lecture interrompue reprend le lendemain. Une panne de ReachMCP ne bloque pas le reste de la tâche.
@@ -57,7 +62,7 @@ export async function GET(request: Request) {
 
   const params = new Map((await requete<{ cle: string; valeur: unknown }>(`select cle, valeur from parametres`)).map((p) => [p.cle, p.valeur]));
   const tache = (lances: string[], reach: unknown) => requete(`insert into releves (nature, statut, termine_le, detail) values ('tache', 'terminé', now(), $1::jsonb)`,
-    [JSON.stringify({ hebdo, lances, verification, cascade, leadfeeder, reach })]);
+    [JSON.stringify({ hebdo, lances, verification, cascade, leadfeeder, crm, reach })]);
   if (params.get("releves_actifs") !== true) {
     const reach = await lireReach(100000);
     await tache([], reach);
