@@ -122,7 +122,7 @@ export default async function Cockpit() {
             <span className="etiquette">3 · Aiguillage par case</span>
             {[
               { nom: "Déjà dans le pipeline Hirondo", info: "opportunité en cours au CRM", d: "jamais transmis, pour ne pas démarcher en parallèle" },
-              { nom: "Transmission à Yannig ou Patrice", info: "A ou B chaud, test qualifiant", d: "audit CRM sous 80 de chaleur, exécution ABM au-delà" },
+              { nom: "Transmission à Yannig ou Sales", info: "A ou B chaud, test qualifiant", d: "audit CRM sous 80 de chaleur, exécution ABM au-delà" },
               { nom: "Alerte nouveau décideur", info: "palier A", d: "angle des 90 premiers jours, quelle que soit la chaleur" },
               { nom: "Reciblage LinkedIn", info: "A et B tièdes", d: "audience de comptes, contenu de Yannig" },
               { nom: "Audience de comptes", info: "A froid", d: "vidéo et étude de cas en notoriété" },
