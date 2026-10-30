@@ -7,15 +7,16 @@ import { verifierEnAttente } from "@/lib/zerobounce";
 import { secondPassageEnAttente } from "@/lib/pipecorn";
 import { relireReach } from "@/lib/reach";
 import { relireLeadfeeder } from "@/lib/leadfeeder";
+import { relireSnitcher } from "@/lib/snitcher";
 import { relireCrm } from "@/lib/crm";
 
 // Deux déclenchements :
 //   ?forcer=hebdo  la mise à jour hebdomadaire, le lundi à 5 h heure de Paris (GitHub Actions, rafraichissement-hebdo.yml) :
 //                  prises de poste, offres d'emploi, engageurs des posts suivis, relecture des décideurs si un mois
 //                  s'est écoulé, CRM Notion de Hirondo, vérification des emails et second passage d'enrichissement
-//   sans forcer    la tâche quotidienne de Vercel : vérification des emails, second passage, visites Leadfeeder, posts de
+//   sans forcer    la tâche quotidienne de Vercel : vérification des emails, second passage, visites Leadfeeder et Snitcher, posts de
 //                  Yannig relus par ReachMCP, et engageurs Apify des seuls posts en période de relecture quotidienne (date « jusqu_au »)
-// Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|offres|engageurs|manquants|verifications|leadfeeder|crm|reach
+// Les résultats reviennent par /api/webhook/apify. ?forcer=postes|decideurs|offres|engageurs|manquants|verifications|leadfeeder|snitcher|crm|reach
 // lance un relevé à la demande. Chaque passage est noté dans releves (nature « tache »).
 export const maxDuration = 300;
 
@@ -42,11 +43,15 @@ export async function GET(request: Request) {
   const cascade = enrichissement ? await secondPassageEnAttente(150000).catch(() => null) : null;
   if (forcer === "verifications") return NextResponse.json({ ok: true, verification, cascade });
 
-  // Leadfeeder, chaque jour : visites du site reconnues par sa base d'entreprises (gratuit, quelques secondes).
+  // Leadfeeder et Snitcher, chaque jour : visites du site reconnues par leur base d'entreprises (quelques secondes).
   const leadfeeder = !forcer || hebdo || forcer === "leadfeeder"
     ? await relireLeadfeeder().catch((e: Error) => ({ erreur: String(e.message).slice(0, 200) }))
     : null;
   if (forcer === "leadfeeder") return NextResponse.json({ ok: true, leadfeeder });
+  const snitcher = !forcer || hebdo || forcer === "snitcher"
+    ? await relireSnitcher().catch((e: Error) => ({ erreur: String(e.message).slice(0, 200) }))
+    : null;
+  if (forcer === "snitcher") return NextResponse.json({ ok: true, snitcher });
 
   // CRM Notion de Hirondo, chaque semaine : missions gagnées, opportunités perdues ou en cours, au niveau du compte.
   const crm = hebdo || forcer === "crm" ? await relireCrm().catch((e: Error) => ({ erreur: String(e.message).slice(0, 200) })) : null;
@@ -62,11 +67,11 @@ export async function GET(request: Request) {
 
   const params = new Map((await requete<{ cle: string; valeur: unknown }>(`select cle, valeur from parametres`)).map((p) => [p.cle, p.valeur]));
   const tache = (lances: string[], reach: unknown) => requete(`insert into releves (nature, statut, termine_le, detail) values ('tache', 'terminé', now(), $1::jsonb)`,
-    [JSON.stringify({ hebdo, lances, verification, cascade, leadfeeder, crm, reach })]);
+    [JSON.stringify({ hebdo, lances, verification, cascade, leadfeeder, snitcher, crm, reach })]);
   if (params.get("releves_actifs") !== true) {
     const reach = await lireReach(100000);
     await tache([], reach);
-    return NextResponse.json({ ok: true, lance: [], verification, cascade, leadfeeder, reach, raison: "relevés coupés" });
+    return NextResponse.json({ ok: true, lance: [], verification, cascade, leadfeeder, snitcher, reach, raison: "relevés coupés" });
   }
 
   const retour = (nature: string) => `${adressePublique(request)}/api/webhook/apify?cle=${encodeURIComponent(process.env.WEBHOOK_SECRET || "")}&nature=${nature}`;
@@ -139,5 +144,5 @@ export async function GET(request: Request) {
   }
   const reach = await lireReach(100000);
   await tache(lances, reach);
-  return NextResponse.json({ ok: true, lances, verification, cascade, leadfeeder, reach });
+  return NextResponse.json({ ok: true, lances, verification, cascade, leadfeeder, snitcher, reach });
 }

@@ -35,7 +35,7 @@ export async function relireLeadfeeder(premierPassage = 30) {
   const { data: comptesLf } = await appeler<{ data: { id: string }[] }>("/accounts", cle);
   if (!comptesLf[0]) return { erreur: "aucun compte Leadfeeder" };
 
-  const [d] = await requete<{ le: string | null }>(`select max(debut) as le from visites_leadfeeder`);
+  const [d] = await requete<{ le: string | null }>(`select max(debut) as le from visites_outils where outil = 'leadfeeder'`);
   const debut = new Date(d?.le ? new Date(d.le).getTime() - 86400000 : Date.now() - premierPassage * 86400000);
   const periode = { start_date: debut.toISOString().slice(0, 10), end_date: new Date().toISOString().slice(0, 10) };
   const comptes = await requete<CompteCible>(`select id::int as id, nom, domaine, site, url_linkedin, effectif from comptes where not exclu`);
@@ -56,10 +56,10 @@ export async function relireLeadfeeder(premierPassage = 30) {
       } : null;
       const lien = vue ? rapprocherEntreprise(vue, comptes) : null;
       await requete(
-        `insert into visites_leadfeeder (id, debut, entreprise_lf, entreprise, domaine, url_linkedin, effectif, pays, pages, duree_s,
+        `insert into visites_outils (outil, id, debut, entreprise_outil, entreprise, domaine, url_linkedin, effectif, pays, pages, duree_s,
            origine_web, compte_id, rapprochement)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-         on conflict (id) do update set pages = excluded.pages, duree_s = excluded.duree_s, compte_id = excluded.compte_id,
+         values ('leadfeeder', $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         on conflict (outil, id) do update set pages = excluded.pages, duree_s = excluded.duree_s, compte_id = excluded.compte_id,
            rapprochement = excluded.rapprochement, lu_le = now()`,
         [v.id, a.started_at, v.relationships?.company?.id ?? null, vue?.nom ?? null, vue?.domaine ?? null, vue?.linkedin[0] ?? null,
           e?.employee_count ?? null, e?.address?.country_code ?? null, pages, a.visit_length ?? null, a.source ?? null,
